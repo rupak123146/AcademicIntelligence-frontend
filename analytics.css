@@ -1,0 +1,279 @@
+/* Analytics Styles */
+.performance-chart {
+  width: 100%;
+  height: 100%;
+}
+
+.chart-empty {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 300px;
+  color: #6b7280;
+  font-size: 1.1rem;
+}
+
+/* Strength and Weakness Cards */
+.strength-weakness-card {
+  background: white;
+  border-radius: var(--border-radius);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  padding: 1.5rem;
+  border-top: 4px solid;
+}
+
+.strength-weakness-card.card-strength {
+  border-top-color: var(--secondary-color);
+}
+
+.strength-weakness-card.card-weakness {
+  border-top-color: var(--danger-color);
+}
+
+.strength-weakness-card h3 {
+  margin-bottom: 1.5rem;
+  color: var(--dark-color);
+}
+
+.empty-text {
+  color: #9ca3af;
+  text-align: center;
+  padding: 2rem;
+}
+
+.items-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.item {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.item-icon {
+  font-weight: bold;
+  font-size: 1.2rem;
+  flex-shrink: 0;
+}
+
+.item-content {
+  flex: 1;
+}
+
+.item-name {
+  margin: 0;
+  font-weight: 500;
+  color: var(--dark-color);
+  margin-bottom: 0.5rem;
+}
+
+.item-bar {
+  width: 100%;
+  height: 6px;
+  background: #e5e7eb;
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 0.25rem;
+}
+
+.item-progress {
+  height: 100%;
+  border-radius: 3px;
+  transition: width var(--transition-duration) ease;
+}
+
+.item-value {
+  margin: 0;
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+/* Chapter Analysis */
+.chapter-analysis {
+  background: white;
+  border-radius: var(--border-radius);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  padding: 1.5rem;
+}
+
+.chapter-analysis h3 {
+  margin-bottom: 1.5rem;
+  color: var(--dark-color);
+}
+
+/* Chapter Performance Chart */
+.chapter-performance-chart {
+  background: white;
+  border-radius: var(--border-radius);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.chapter-performance-chart h3 {
+  color: var(--dark-color);
+  margin-bottom: 1.5rem;
+  font-size: 1.2rem;
+}
+
+.chapter-stats {
+  margin-top: 2rem;
+}
+
+.chapter-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.chapter-table thead {
+  background-color: #f3f4f6;
+}
+
+.chapter-table th {
+  padding: 1rem;
+  text-align: left;
+  font-weight: 600;
+  color: var(--dark-color);
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.chapter-table td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.chapter-table tbody tr:hover {
+  background-color: #f9fafb;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 8px;
+  background-color: #e5e7eb;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 0.5rem;
+  display: inline-block;
+  width: 80%;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+/* Difficulty Performance Chart */
+.difficulty-performance-chart {
+  background: white;
+  border-radius: var(--border-radius);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.difficulty-performance-chart h3 {
+  color: var(--dark-color);
+  margin-bottom: 1.5rem;
+  font-size: 1.2rem;
+}
+
+.difficulty-charts-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+  margin-bottom: 2rem;
+}
+
+.difficulty-pie-chart,
+.difficulty-bar-chart {
+  background: #f9fafb;
+  border-radius: 0.5rem;
+  padding: 1rem;
+}
+
+.difficulty-pie-chart h4,
+.difficulty-bar-chart h4 {
+  color: var(--dark-color);
+  margin-bottom: 1rem;
+  font-size: 1rem;
+}
+
+.difficulty-stats {
+  margin-top: 2rem;
+}
+
+.difficulty-stats h4 {
+  color: var(--dark-color);
+  margin-bottom: 1rem;
+  font-size: 1rem;
+}
+
+.difficulty-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.difficulty-table thead {
+  background-color: #f3f4f6;
+}
+
+.difficulty-table th {
+  padding: 1rem;
+  text-align: left;
+  font-weight: 600;
+  color: var(--dark-color);
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.difficulty-table td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.difficulty-table tbody tr:hover {
+  background-color: #f9fafb;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .strength-weakness-card {
+    padding: 1rem;
+  }
+
+  .items-list {
+    gap: 0.75rem;
+  }
+
+  .chapter-analysis {
+    padding: 1rem;
+  }
+
+  .chapter-performance-chart {
+    padding: 1rem;
+  }
+
+  .difficulty-performance-chart {
+    padding: 1rem;
+  }
+
+  .difficulty-charts-container {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .chapter-table th,
+  .chapter-table td {
+    padding: 0.5rem;
+    font-size: 0.875rem;
+  }
+
+  .difficulty-table th,
+  .difficulty-table td {
+    padding: 0.5rem;
+    font-size: 0.875rem;
+  }
+}

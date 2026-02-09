@@ -1,0 +1,270 @@
+/* Student Pages */
+.dashboard-container,
+.exam-list-container {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.dashboard-header {
+  margin-bottom: 2rem;
+}
+
+.dashboard-header h1 {
+  margin-bottom: 0.5rem;
+}
+
+.dashboard-header p {
+  color: #6b7280;
+  font-size: 1.1rem;
+}
+
+/* Dashboard Guide Section */
+.dashboard-guide {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 3rem;
+}
+
+.guide-card {
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  border: 2px solid #0ea5e9;
+  border-radius: var(--border-radius);
+  padding: 1.5rem;
+  text-align: center;
+  transition: all var(--transition-duration) ease;
+}
+
+.guide-card:hover {
+  box-shadow: 0 4px 12px rgba(6, 182, 212, 0.2);
+  transform: translateY(-2px);
+}
+
+.guide-icon {
+  font-size: 2.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.guide-card h3 {
+  color: #0369a1;
+  margin-bottom: 0.75rem;
+  font-size: 1rem;
+}
+
+.guide-card p {
+  color: #0c4a6e;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* Exam Cards */
+.exam-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
+.exam-card {
+  background: white;
+  border-radius: var(--border-radius);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  transition: all var(--transition-duration) ease;
+}
+
+.exam-card:hover {
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+  transform: translateY(-4px);
+}
+
+.exam-card-header {
+  background: linear-gradient(135deg, #3b82f6 0%, #1e40af 100%);
+  color: white;
+  padding: 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.exam-card-header h3 {
+  margin: 0;
+  flex: 1;
+  margin-right: 1rem;
+}
+
+.exam-status {
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  background: rgba(255, 255, 255, 0.3);
+  white-space: nowrap;
+}
+
+.exam-status.status-published {
+  background: #10b981;
+}
+
+.exam-status.status-ongoing {
+  background: #f59e0b;
+}
+
+.exam-status.status-completed {
+  background: #06b6d4;
+}
+
+.exam-card-body {
+  padding: 1.5rem;
+}
+
+.exam-description {
+  color: #6b7280;
+  margin-bottom: 1.5rem;
+  line-height: 1.6;
+}
+
+.exam-stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.stat {
+  text-align: center;
+}
+
+.stat-label {
+  display: block;
+  color: #6b7280;
+  font-size: 0.85rem;
+  margin-bottom: 0.25rem;
+}
+
+.stat-value {
+  display: block;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--primary-color);
+}
+
+.exam-subject {
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
+.exam-card-footer {
+  padding: 1.5rem;
+  background: #f9fafb;
+}
+
+.exam-card-footer .btn {
+  width: 100%;
+}
+
+/* Analysis Section */
+.analysis-section {
+  margin-bottom: 2rem;
+}
+
+.analysis-section h2 {
+  margin-bottom: 1.5rem;
+}
+
+.analysis-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
+/* Recent Exams Section */
+.recent-exams-section {
+  background: white;
+  border-radius: var(--border-radius);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  padding: 2rem;
+}
+
+.recent-exams-section h2 {
+  margin-bottom: 1.5rem;
+}
+
+.exams-table {
+  width: 100%;
+}
+
+.exams-table th {
+  text-align: left;
+  padding: 1rem;
+  font-weight: 600;
+  color: var(--dark-color);
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.exams-table td {
+  padding: 1rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.exams-table tbody tr:hover {
+  background: #f9fafb;
+}
+
+/* Empty State */
+.empty-state {
+  text-align: center;
+  padding: 3rem;
+  background: white;
+  border-radius: var(--border-radius);
+  color: #6b7280;
+}
+
+.empty-state p {
+  font-size: 1.1rem;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .exam-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .exam-stats {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.5rem;
+  }
+
+  .stat {
+    text-align: center;
+  }
+
+  .stat-label {
+    font-size: 0.75rem;
+  }
+
+  .stat-value {
+    font-size: 1.25rem;
+  }
+
+  .analysis-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .recent-exams-section {
+    padding: 1rem;
+    overflow-x: auto;
+  }
+
+  .exams-table {
+    font-size: 0.875rem;
+  }
+
+  .exams-table th,
+  .exams-table td {
+    padding: 0.75rem;
+  }
+}
