@@ -1,5 +1,3 @@
-// Dashboard Module
-
 /**
  * 🎓 Academic Intelligence Platform - Admin Dashboard
  * Production version - fetches real data from backend API

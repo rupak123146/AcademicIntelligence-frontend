@@ -8,6 +8,14 @@ import { devtools } from 'zustand/middleware';
 import { Exam, ExamAttempt, Question, StudentAnswer } from '@/types';
 import { examAPI } from '@/services/api';
 
+const dedupeById = <T extends { id: string | number }>(items: T[]) => {
+  const uniqueMap = new Map<string | number, T>();
+  items.forEach((item) => {
+    uniqueMap.set(item.id, item);
+  });
+  return Array.from(uniqueMap.values());
+};
+
 interface ExamState {
   // Exam list state
   exams: Exam[];
@@ -85,7 +93,7 @@ export const useExamStore = create<ExamState>()(
           const response = await examAPI.getExams(params);
           const data = response.data.data as { exams?: Exam[] } | Exam[];
           const exams = Array.isArray(data) ? data : (data?.exams || []);
-          set({ exams, isLoadingExams: false });
+          set({ exams: dedupeById(exams), isLoadingExams: false });
         } catch (error: any) {
           set({
             isLoadingExams: false,
@@ -102,7 +110,7 @@ export const useExamStore = create<ExamState>()(
           const data = response.data.data as { exams?: Exam[] } | Exam[];
           // Handle both array and object with exams property
           const exams = Array.isArray(data) ? data : (data?.exams || []);
-          set({ availableExams: exams as Exam[], isLoadingExams: false });
+          set({ availableExams: dedupeById(exams as Exam[]), isLoadingExams: false });
         } catch (error: any) {
           set({
             isLoadingExams: false,

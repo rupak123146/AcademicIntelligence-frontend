@@ -142,7 +142,8 @@ const ExamEditor: React.FC = () => {
     currentStrength?: number;
   }
   interface DepartmentData {
-    _id: string;
+    _id?: string;
+    id?: string;
     name: string;
     code: string;
   }
@@ -850,21 +851,25 @@ const ExamEditor: React.FC = () => {
                 {availableDepartments.length > 0 ? (
                   <Box display="flex" flexDirection="column" gap={1}>
                     {availableDepartments.map((dept) => (
+                      (() => {
+                        const deptId = dept._id || dept.id;
+                        if (!deptId) return null;
+                        return (
                       <FormControlLabel
-                        key={dept._id}
+                        key={deptId}
                         control={
                           <Checkbox
-                            checked={examForm.assignedDepartments.includes(dept._id)}
+                            checked={examForm.assignedDepartments.includes(deptId)}
                             onChange={(e) => {
                               if (e.target.checked) {
                                 setExamForm({
                                   ...examForm,
-                                  assignedDepartments: [...examForm.assignedDepartments, dept._id],
+                                  assignedDepartments: [...examForm.assignedDepartments, deptId],
                                 });
                               } else {
                                 setExamForm({
                                   ...examForm,
-                                  assignedDepartments: examForm.assignedDepartments.filter(id => id !== dept._id),
+                                  assignedDepartments: examForm.assignedDepartments.filter(id => id !== deptId),
                                 });
                               }
                             }}
@@ -872,6 +877,8 @@ const ExamEditor: React.FC = () => {
                         }
                         label={`${dept.name} (${dept.code})`}
                       />
+                        );
+                      })()
                     ))}
                   </Box>
                 ) : (

@@ -211,16 +211,25 @@ const ExamManagement: React.FC = () => {
     }
   };
 
+  const dedupeExams = (items: Exam[]) => {
+    const uniqueMap = new Map<string | number, Exam>();
+    items.forEach((exam) => {
+      uniqueMap.set(exam.id, exam);
+    });
+    return Array.from(uniqueMap.values());
+  };
+
   const filterExams = (status?: string) => {
     if (!exams) return [];
-    if (!status || status === 'all') return exams;
-    return exams.filter((e) => e.status === status);
+    const base = dedupeExams(exams);
+    if (!status || status === 'all') return base;
+    return base.filter((e) => e.status === status);
   };
 
   const getTabExams = () => {
     switch (tabValue) {
       case 0: return filterExams();
-      case 1: return filterExams('active').concat(filterExams('published'));
+      case 1: return dedupeExams(filterExams('active').concat(filterExams('published')));
       case 2: return filterExams('scheduled');
       case 3: return filterExams('draft');
       case 4: return filterExams('completed');
