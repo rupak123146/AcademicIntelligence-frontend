@@ -28,6 +28,7 @@ const EducatorDashboard = lazy(() => import('@/pages/educator/Dashboard'));
 const ExamManagement = lazy(() => import('@/pages/educator/ExamManagement'));
 const ExamEditor = lazy(() => import('@/pages/educator/ExamEditor'));
 const QuestionBank = lazy(() => import('@/pages/educator/QuestionBank'));
+const ChapterConceptManagement = lazy(() => import('@/pages/educator/ChapterConceptManagement'));
 const ClassAnalytics = lazy(() => import('@/pages/educator/ClassAnalytics'));
 const StudentProgress = lazy(() => import('@/pages/educator/StudentProgress'));
 const EducatorStudentManagement = lazy(() => import('@/pages/educator/StudentManagement'));
@@ -112,6 +113,7 @@ const App: React.FC = () => {
           <Route path="/educator/exams/create" element={<ExamEditor />} />
           <Route path="/educator/exams/:examId/edit" element={<ExamEditor />} />
           <Route path="/educator/questions" element={<QuestionBank />} />
+          <Route path="/educator/curriculum" element={<ChapterConceptManagement />} />
           <Route path="/educator/analytics" element={<ClassAnalytics />} />
           <Route path="/educator/progress" element={<StudentProgress />} />
         </Route>

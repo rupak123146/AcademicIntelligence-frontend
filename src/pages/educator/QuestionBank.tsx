@@ -3,7 +3,7 @@
  * Production version - fetches real data from backend API
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Grid,
@@ -44,7 +44,7 @@ import {
   QuestionAnswer as QuestionIcon,
   Refresh as RefreshIcon,
 } from '@mui/icons-material';
-import { questionAPI } from '@/services/api';
+import { questionAPI, subjectAPI, chapterAPI } from '@/services/api';
 
 interface Question {
   id: string | number;
@@ -76,13 +76,49 @@ const QuestionBank: React.FC = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
+  const [subjects, setSubjects] = useState<any[]>([]);
+  const [chapters, setChapters] = useState<any[]>([]);
+  const [concepts, setConcepts] = useState<any[]>([]);
+  const [newConceptName, setNewConceptName] = useState('');
+  const [isCreatingConcept, setIsCreatingConcept] = useState(false);
+  const chapterCacheRef = useRef<Record<string, any[]>>({});
+  const conceptCacheRef = useRef<Record<string, any[]>>({});
+
+  const dedupeSubjects = (items: any[] = []) => {
+    return Array.from(new Map(items.filter((item) => item?.id).map((item) => [item.id, item])).values());
+  };
+
+  const dedupeChapters = (items: any[] = []) => {
+    return Array.from(
+      new Map(
+        items
+          .filter((item) => item?.id)
+          .map((item) => [
+            `${String(item.chapterNumber ?? '').trim()}::${String(item.name ?? '').trim().toLowerCase()}`,
+            item,
+          ])
+      ).values()
+    );
+  };
+
+  const dedupeConcepts = (items: any[] = []) => {
+    return Array.from(
+      new Map(
+        items
+          .filter((item) => item?.id)
+          .map((item) => [String(item.name ?? '').trim().toLowerCase(), item])
+      ).values()
+    );
+  };
+
   const [questionForm, setQuestionForm] = useState({
     questionText: '',
     questionType: 'mcq' as Question['questionType'],
     difficulty: 'medium' as Question['difficulty'],
     marks: 1,
-    chapter: '',
-    concept: '',
+    subjectId: '',
+    chapterId: '',
+    conceptId: '',
     options: [
       { optionText: '', isCorrect: false },
       { optionText: '', isCorrect: false },
@@ -94,13 +130,101 @@ const QuestionBank: React.FC = () => {
 
   const [hasFetched, setHasFetched] = useState(false);
 
-  // Fetch questions on mount
+  // Fetch questions and subjects on mount
   useEffect(() => {
     const token = localStorage.getItem('accessToken');
     if (hasFetched || !token) return;
     setHasFetched(true);
     fetchQuestions();
+    fetchSubjects();
   }, [hasFetched]);
+
+  const fetchSubjects = async () => {
+    try {
+      const response = await subjectAPI.getSubjects({ limit: 500, simple: true });
+      const data = response.data.data as { subjects?: any[] } | any[];
+      const subjectsList = Array.isArray(data) ? data : (data?.subjects || []);
+      setSubjects(dedupeSubjects(subjectsList));
+    } catch (err: any) {
+      console.error('Failed to fetch subjects:', err);
+    }
+  };
+
+  const handleSubjectChange = async (subjectId: string) => {
+    setQuestionForm({ ...questionForm, subjectId, chapterId: '', conceptId: '' });
+    setChapters([]);
+    setConcepts([]);
+    setNewConceptName('');
+
+    if (subjectId && chapterCacheRef.current[subjectId]) {
+      setChapters(chapterCacheRef.current[subjectId]);
+      return;
+    }
+
+    if (subjectId) {
+      try {
+        const response = await subjectAPI.getChaptersBySubject(subjectId, { limit: 500, simple: true });
+        const data = response.data.data as { chapters?: any[] } | any[];
+        const chaptersList = Array.isArray(data) ? data : (data?.chapters || []);
+        const uniqueChapters = dedupeChapters(chaptersList);
+        chapterCacheRef.current[subjectId] = uniqueChapters;
+        setChapters(uniqueChapters);
+      } catch (err: any) {
+        console.error('Failed to fetch chapters:', err);
+      }
+    }
+  };
+
+  const handleChapterChange = async (chapterId: string) => {
+    setQuestionForm({ ...questionForm, chapterId, conceptId: '' });
+    setConcepts([]);
+    setNewConceptName('');
+
+    if (chapterId && conceptCacheRef.current[chapterId]) {
+      setConcepts(conceptCacheRef.current[chapterId]);
+      return;
+    }
+
+    if (chapterId) {
+      try {
+        const response = await chapterAPI.getConceptsByChapter(chapterId, { limit: 500, simple: true });
+        const data = response.data.data as { concepts?: any[] } | any[];
+        const conceptsList = Array.isArray(data) ? data : (data?.concepts || []);
+        const uniqueConcepts = dedupeConcepts(conceptsList);
+        conceptCacheRef.current[chapterId] = uniqueConcepts;
+        setConcepts(uniqueConcepts);
+      } catch (err: any) {
+        console.error('Failed to fetch concepts:', err);
+      }
+    }
+  };
+
+  const handleCreateConceptInline = async () => {
+    if (!questionForm.chapterId || !newConceptName.trim()) {
+      return;
+    }
+
+    setIsCreatingConcept(true);
+    try {
+      const response = await chapterAPI.createConcept(questionForm.chapterId, {
+        name: newConceptName.trim(),
+        difficultyLevel: 'medium',
+      });
+      const data = response.data.data as { id?: string; concept?: any } | any;
+      const createdConcept = data?.concept || data;
+
+      delete conceptCacheRef.current[questionForm.chapterId];
+      await handleChapterChange(questionForm.chapterId);
+      if (createdConcept?.id) {
+        setQuestionForm((prev) => ({ ...prev, conceptId: createdConcept.id }));
+      }
+      setNewConceptName('');
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to create concept');
+    } finally {
+      setIsCreatingConcept(false);
+    }
+  };
 
   const fetchQuestions = async () => {
     setIsLoading(true);
@@ -142,11 +266,19 @@ const QuestionBank: React.FC = () => {
 
   const handleCreateQuestion = async () => {
     try {
+      if (!questionForm.subjectId || !questionForm.chapterId || !questionForm.conceptId) {
+        setError('Subject, chapter, and concept are mandatory for student performance tracking');
+        return;
+      }
+
       const data = {
         questionText: questionForm.questionText,
         questionType: questionForm.questionType,
         difficulty: questionForm.difficulty,
         marks: questionForm.marks,
+        subjectId: questionForm.subjectId,
+        chapterId: questionForm.chapterId,
+        conceptId: questionForm.conceptId,
         options: questionForm.questionType === 'mcq' || questionForm.questionType === 'multiple_choice' 
           ? questionForm.options.filter(opt => opt.optionText).map(opt => ({
               text: opt.optionText,
@@ -175,8 +307,9 @@ const QuestionBank: React.FC = () => {
       questionType: 'mcq',
       difficulty: 'medium',
       marks: 1,
-      chapter: '',
-      concept: '',
+      subjectId: '',
+      chapterId: '',
+      conceptId: '',
       options: [
         { optionText: '', isCorrect: false },
         { optionText: '', isCorrect: false },
@@ -185,6 +318,9 @@ const QuestionBank: React.FC = () => {
       ],
       correctAnswer: '',
     });
+    setChapters([]);
+    setConcepts([]);
+    setNewConceptName('');
   };
 
   const getDifficultyColor = (difficulty: string) => {
@@ -461,6 +597,77 @@ const QuestionBank: React.FC = () => {
               />
             </Grid>
 
+            {/* Subject/Chapter/Concept Selection */}
+            <Grid item xs={12} md={4}>
+              <FormControl fullWidth required>
+                <InputLabel>Subject</InputLabel>
+                <Select
+                  value={questionForm.subjectId}
+                  label="Subject"
+                  onChange={(e) => handleSubjectChange(e.target.value)}
+                >
+                  {subjects.map((subject) => (
+                    <MenuItem key={subject.id} value={subject.id}>
+                      {subject.name} ({subject.code})
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <FormControl fullWidth required disabled={!questionForm.subjectId}>
+                <InputLabel>Chapter</InputLabel>
+                <Select
+                  value={questionForm.chapterId}
+                  label="Chapter"
+                  onChange={(e) => handleChapterChange(e.target.value)}
+                >
+                  {chapters.map((chapter) => (
+                    <MenuItem key={chapter.id} value={chapter.id}>
+                      Ch {chapter.chapterNumber}: {chapter.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <FormControl fullWidth required disabled={!questionForm.chapterId}>
+                <InputLabel>Concept</InputLabel>
+                <Select
+                  value={questionForm.conceptId}
+                  label="Concept"
+                  onChange={(e) => setQuestionForm({ ...questionForm, conceptId: e.target.value })}
+                >
+                  {concepts.map((concept) => (
+                    <MenuItem key={concept.id} value={concept.id}>
+                      {concept.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+
+            <Grid item xs={12}>
+              <Box display="flex" gap={2} alignItems="center">
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="Create Concept (if not listed)"
+                  value={newConceptName}
+                  onChange={(e) => setNewConceptName(e.target.value)}
+                  disabled={!questionForm.chapterId || isCreatingConcept}
+                  placeholder="Enter new concept name"
+                />
+                <Button
+                  variant="outlined"
+                  onClick={handleCreateConceptInline}
+                  disabled={!questionForm.chapterId || !newConceptName.trim() || isCreatingConcept}
+                >
+                  {isCreatingConcept ? 'Creating...' : 'Create Concept'}
+                </Button>
+              </Box>
+            </Grid>
+
             {(questionForm.questionType === 'mcq' || questionForm.questionType === 'multiple_choice') && (
               <Grid item xs={12}>
                 <Typography variant="subtitle2" gutterBottom>
@@ -537,7 +744,7 @@ const QuestionBank: React.FC = () => {
           <Button 
             variant="contained" 
             onClick={handleCreateQuestion}
-            disabled={questionForm.questionText.length < 5 || !questionForm.marks || (
+            disabled={questionForm.questionText.length < 5 || !questionForm.marks || !questionForm.subjectId || !questionForm.chapterId || !questionForm.conceptId || (
               (questionForm.questionType === 'mcq' || questionForm.questionType === 'multiple_choice') &&
               questionForm.options.filter(opt => opt.optionText).length < 2
             ) || (

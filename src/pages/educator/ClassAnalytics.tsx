@@ -87,6 +87,12 @@ interface StudentPerformance {
   firstName: string;
   lastName: string;
   email: string;
+  phoneNumber?: string;
+  studentId?: string;
+  rollNumber?: string;
+  currentSemester?: number;
+  department?: { name: string; code: string };
+  section?: { name: string };
   averageScore: number;
   examsAttempted: number;
   examsTaken: number;
@@ -96,6 +102,12 @@ interface StudentPerformance {
   totalWrong: number;
   trend: number;
   weakArea: string;
+  examHistory?: Array<{
+    examTitle: string;
+    score: number;
+    date?: string;
+    timeAttended?: number;
+  }>;
 }
 
 const ClassAnalytics: React.FC = () => {
@@ -159,6 +171,9 @@ const ClassAnalytics: React.FC = () => {
     students.sort((a, b) => {
       const aValue = a[orderBy];
       const bValue = b[orderBy];
+      if (aValue === undefined && bValue === undefined) return 0;
+      if (aValue === undefined) return 1;
+      if (bValue === undefined) return -1;
       if (order === 'asc') {
         return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
       }
@@ -414,6 +429,16 @@ const ClassAnalytics: React.FC = () => {
                     </TableCell>
                     <TableCell align="center">
                       <TableSortLabel
+                        active={orderBy === 'rollNumber'}
+                        direction={orderBy === 'rollNumber' ? order : 'asc'}
+                        onClick={() => handleSort('rollNumber' as keyof StudentPerformance)}
+                      >
+                        Roll No.
+                      </TableSortLabel>
+                    </TableCell>
+                    <TableCell align="center">Phone</TableCell>
+                    <TableCell align="center">
+                      <TableSortLabel
                         active={orderBy === 'examsAttempted'}
                         direction={orderBy === 'examsAttempted' ? order : 'asc'}
                         onClick={() => handleSort('examsAttempted')}
@@ -465,6 +490,12 @@ const ClassAnalytics: React.FC = () => {
                             <Typography variant="caption" color="text.secondary">{student.email}</Typography>
                           </Box>
                         </Box>
+                      </TableCell>
+                      <TableCell align="center">
+                        <Typography variant="body2">{student.rollNumber || 'N/A'}</Typography>
+                      </TableCell>
+                      <TableCell align="center">
+                        <Typography variant="body2">{student.phoneNumber || 'N/A'}</Typography>
                       </TableCell>
                       <TableCell align="center">
                         <Box>
@@ -890,6 +921,12 @@ const ClassAnalytics: React.FC = () => {
             <Box>
               <Typography variant="h6">{selectedStudent?.firstName} {selectedStudent?.lastName}</Typography>
               <Typography variant="body2" color="text.secondary">{selectedStudent?.email}</Typography>
+              {selectedStudent?.rollNumber && (
+                <Typography variant="body2" color="text.secondary">Roll No: {selectedStudent.rollNumber}</Typography>
+              )}
+              {selectedStudent?.phoneNumber && (
+                <Typography variant="body2" color="text.secondary">Phone: {selectedStudent.phoneNumber}</Typography>
+              )}
             </Box>
           </Box>
         </DialogTitle>
@@ -962,6 +999,42 @@ const ClassAnalytics: React.FC = () => {
                   </Typography>
                 </Alert>
               </Grid>
+              {selectedStudent.examHistory && selectedStudent.examHistory.length > 0 && (
+                <Grid item xs={12}>
+                  <Card sx={{ bgcolor: 'grey.50', p: 2 }}>
+                    <Typography variant="body2" color="text.secondary" gutterBottom fontWeight={600}>Recent Exams</Typography>
+                    <List sx={{ p: 0 }}>
+                      {selectedStudent.examHistory.slice(0, 5).map((exam, index) => (
+                        <ListItem 
+                          key={index}
+                          sx={{ py: 1, px: 0, borderBottom: index < (selectedStudent.examHistory?.length || 0) - 1 ? '1px solid #e5e7eb' : 'none' }}
+                        >
+                          <Box flex={1}>
+                            <Typography variant="body2" fontWeight={500}>{exam.examTitle}</Typography>
+                            <Box display="flex" gap={1} alignItems="center" mt={0.5}>
+                              <Typography variant="caption" color="text.secondary">
+                                {exam.date ? new Date(exam.date).toLocaleDateString() : 'N/A'}
+                              </Typography>
+                              {exam.timeAttended && (
+                                <Chip 
+                                  label={`${exam.timeAttended}m`}
+                                  size="small"
+                                  variant="outlined"
+                                />
+                              )}
+                            </Box>
+                          </Box>
+                          <Chip
+                            label={`${exam.score}%`}
+                            color={exam.score >= 70 ? 'success' : exam.score >= 50 ? 'warning' : 'error'}
+                            size="small"
+                          />
+                        </ListItem>
+                      ))}
+                    </List>
+                  </Card>
+                </Grid>
+              )}
             </Grid>
           )}
         </DialogContent>

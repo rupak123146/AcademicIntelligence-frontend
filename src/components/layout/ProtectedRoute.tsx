@@ -7,6 +7,7 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { Box, CircularProgress } from '@mui/material';
 import { useAuthStore } from '@/store';
 import { UserRole } from '@/types';
+import { getAccessToken } from '@/services/api';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -19,6 +20,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 }) => {
   const { isAuthenticated, isLoading, user } = useAuthStore();
   const location = useLocation();
+  const hasToken = Boolean(getAccessToken());
 
   // Show loading while checking auth status
   if (isLoading) {
@@ -37,7 +39,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   }
 
   // Redirect to login if not authenticated
-  if (!isAuthenticated) {
+  if (!isAuthenticated || !hasToken) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 

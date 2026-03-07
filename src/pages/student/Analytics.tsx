@@ -61,6 +61,7 @@ const TabPanel: React.FC<TabPanelProps> = ({ children, value, index }) => (
 
 const AnalyticsPage: React.FC = () => {
   const [tabValue, setTabValue] = useState(0);
+  const [pageLoading, setPageLoading] = useState(true);
   const {
     studentAnalytics,
     chapterPerformance,
@@ -85,13 +86,24 @@ const AnalyticsPage: React.FC = () => {
     const token = localStorage.getItem('accessToken');
     if (hasFetched || !token) return;
     setHasFetched(true);
-    // Fetch all analytics data
-    fetchStudentAnalytics();
-    fetchChapterPerformance();
-    fetchConceptMastery();
-    fetchDifficultyAnalysis();
-    fetchPerformanceTrend();
-    fetchLearningGaps();
+
+    const loadAllAnalytics = async () => {
+      setPageLoading(true);
+      try {
+        await Promise.all([
+          fetchStudentAnalytics(),
+          fetchChapterPerformance(),
+          fetchConceptMastery(),
+          fetchDifficultyAnalysis(),
+          fetchPerformanceTrend(),
+          fetchLearningGaps(),
+        ]);
+      } finally {
+        setPageLoading(false);
+      }
+    };
+
+    loadAllAnalytics();
   }, [hasFetched]);
 
   const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
@@ -107,7 +119,9 @@ const AnalyticsPage: React.FC = () => {
     }
   };
 
-  if (isLoading) {
+  const pageIsLoading = pageLoading || isLoading;
+
+  if (pageIsLoading) {
     return (
       <Box>
         <Skeleton variant="text" width={300} height={40} sx={{ mb: 2 }} />
@@ -391,6 +405,7 @@ const AnalyticsPage: React.FC = () => {
                   </ListItemIcon>
                   <ListItemText
                     sx={{ m: 0 }}
+                    secondaryTypographyProps={{ component: 'div' }}
                     primary={
                       <Box display="flex" alignItems="center" gap={1} flexWrap="wrap">
                         <Typography variant="subtitle1" fontWeight={600} sx={{ fontSize: { xs: '0.9rem', md: '1rem' } }}>

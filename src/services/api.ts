@@ -202,7 +202,7 @@ export const authAPI = {
     api.get<APIResponse>(`/users/students/department/${departmentId}`, { params: { studentClass } }),
 
   getEducatorStudents: () =>
-    api.get<APIResponse>('/users/students'),
+    api.get<APIResponse>('/users/my-students'),
 
   // Sections and Departments for exam assignment
   getDepartments: () =>
@@ -448,8 +448,12 @@ export const analyticsAPI = {
   getTrend: (studentId: number, courseId: number, windowSize?: number) =>
     analyticsApi.post<APIResponse>('/analytics/trend', { studentId, courseId }, { params: { windowSize } }),
 
-  getFeedback: (studentId: number, courseId: number, examId?: number) =>
-    analyticsApi.post<APIResponse>('/analytics/feedback', { studentId, courseId, examId }),
+  getFeedback: (studentId: number | undefined, courseId: number, examId?: number) =>
+    analyticsApi.post<APIResponse>('/analytics/feedback', {
+      ...(studentId !== undefined ? { studentId } : {}),
+      courseId,
+      ...(examId !== undefined ? { examId } : {}),
+    }),
 
   getFullAnalysis: (studentId: number, courseId: number, examId?: number, options?: {
     includeChapters?: boolean;
@@ -496,6 +500,119 @@ export const analyticsAPI = {
 };
 
 // =====================================================
+// Goal Tracking API
+// =====================================================
+
+export const goalAPI = {
+  createGoal: (data: {
+    studentId: number;
+    courseId: number;
+    goalType: string;
+    targetMetric: string;
+    targetValue: number;
+    targetDate: string;
+    priority?: string;
+    description?: string;
+  }) => api.post<APIResponse>('/goals/create', data),
+
+  getStudentGoals: (studentId: number, params?: { courseId?: number; status?: string }) =>
+    api.get<APIResponse>(`/goals/student/${studentId}`, { params }),
+
+  updateProgress: (goalId: number, data: { currentValue: number; notes?: string }) =>
+    api.post<APIResponse>(`/goals/${goalId}/update-progress`, data),
+
+  getGoalDetails: (goalId: number, includeHistory: boolean = true) =>
+    api.get<APIResponse>(`/goals/${goalId}`, { params: { includeHistory } }),
+
+  getCourseGoalsSummary: (courseId: number) =>
+    api.get<APIResponse>(`/goals/course/${courseId}/summary`),
+};
+
+// =====================================================
+// Notification API
+// =====================================================
+
+export const notificationAPI = {
+  sendNotification: (data: {
+    studentId: number;
+    courseId?: number;
+    notificationType: string;
+    title: string;
+    message: string;
+    actionUrl?: string;
+    priority?: string;
+    metadata?: any;
+  }) => api.post<APIResponse>('/notifications/send', data),
+
+  getUserNotifications: (userId: number, params?: {
+    unreadOnly?: boolean;
+    notificationType?: string;
+    limit?: number;
+  }) => api.get<APIResponse>(`/notifications/user/${userId}`, { params }),
+
+  markAsRead: (notificationId: number) =>
+    api.post<APIResponse>(`/notifications/${notificationId}/mark-read`),
+
+  setPreferences: (studentId: number, preferences: any) =>
+    api.post<APIResponse>('/notifications/preferences', { studentId, preferences }),
+
+  getPreferences: (studentId: number) =>
+    api.get<APIResponse>(`/notifications/preferences/${studentId}`),
+};
+
+// =====================================================
+// Intervention Tracking API
+// =====================================================
+
+export const interventionAPI = {
+  createIntervention: (data: {
+    studentId: number;
+    educatorId: number;
+    courseId: number;
+    interventionType: string;
+    reason: string;
+    plannedActions: string;
+    targetMetrics?: any;
+    estimatedDuration?: number;
+  }) => api.post<APIResponse>('/interventions/create', data),
+
+  startIntervention: (interventionId: number, data?: { actualStartDate?: string; notes?: string }) =>
+    api.post<APIResponse>(`/interventions/${interventionId}/start`, data),
+
+  addCheckin: (interventionId: number, data: {
+    progress?: string;
+    observations: string;
+    nextSteps?: string;
+    metricsUpdate?: any;
+  }) => api.post<APIResponse>(`/interventions/${interventionId}/checkin`, data),
+
+  recordOutcome: (interventionId: number, data: {
+    outcome: string;
+    finalMetrics?: any;
+    notes?: string;
+    recommendFollowup?: boolean;
+  }) => api.post<APIResponse>(`/interventions/${interventionId}/outcome`, data),
+
+  completeIntervention: (interventionId: number, data?: { completionDate?: string; finalNotes?: string }) =>
+    api.post<APIResponse>(`/interventions/${interventionId}/complete`, data),
+
+  getInterventionDetails: (interventionId: number, includeCheckins: boolean = true) =>
+    api.get<APIResponse>(`/interventions/${interventionId}`, { params: { includeCheckins } }),
+
+  getStudentInterventions: (studentId: number, params?: {
+    courseId?: number;
+    status?: string;
+    interventionType?: string;
+  }) => api.get<APIResponse>(`/interventions/student/${studentId}`, { params }),
+
+  getEffectiveness: (params?: {
+    courseId?: number;
+    educatorId?: number;
+    interventionType?: string;
+  }) => api.get<APIResponse>('/interventions/effectiveness', { params }),
+};
+
+// =====================================================
 // Course API
 // =====================================================
 
@@ -508,10 +625,52 @@ export const courseAPI = {
   getEnrolledCourses: () => api.get<APIResponse>('/courses/enrolled'),
 
   enrollInCourse: (courseId: number) => api.post<APIResponse>(`/courses/${courseId}/enroll`),
+};
 
-  getChapters: (courseId: number) => api.get<APIResponse>(`/courses/${courseId}/chapters`),
+// =====================================================
+// Subject/Chapter/Concept API
+// =====================================================
 
-  getConcepts: (chapterId: number) => api.get<APIResponse>(`/chapters/${chapterId}/concepts`),
+export const subjectAPI = {
+  getSubjects: (params?: { page?: number; limit?: number; simple?: boolean }) => 
+    api.get<APIResponse>('/subjects', { params }),
+
+  getSubject: (subjectId: string) => 
+    api.get<APIResponse>(`/subjects/${subjectId}`),
+
+  getChaptersBySubject: (subjectId: string, params?: { page?: number; limit?: number; simple?: boolean }) => 
+    api.get<APIResponse>(`/subjects/${subjectId}/chapters`, { params }),
+
+  createChapter: (subjectId: string, data: { name: string; chapterNumber: number; description?: string }) =>
+    api.post<APIResponse>(`/subjects/${subjectId}/chapters`, data),
+};
+
+export const chapterAPI = {
+  getChapter: (chapterId: string) => 
+    api.get<APIResponse>(`/chapters/${chapterId}`),
+
+  updateChapter: (chapterId: string, data: { name?: string; chapterNumber?: number; description?: string }) =>
+    api.put<APIResponse>(`/chapters/${chapterId}`, data),
+
+  deleteChapter: (chapterId: string) => 
+    api.delete<APIResponse>(`/chapters/${chapterId}`),
+
+  getConceptsByChapter: (chapterId: string, params?: { page?: number; limit?: number; simple?: boolean }) => 
+    api.get<APIResponse>(`/chapters/${chapterId}/concepts`, { params }),
+
+  createConcept: (chapterId: string, data: { name: string; description?: string; difficultyLevel?: string }) =>
+    api.post<APIResponse>(`/chapters/${chapterId}/concepts`, data),
+};
+
+export const conceptAPI = {
+  getConcept: (conceptId: string) => 
+    api.get<APIResponse>(`/concepts/${conceptId}`),
+
+  updateConcept: (conceptId: string, data: { name?: string; description?: string; difficultyLevel?: string }) =>
+    api.put<APIResponse>(`/concepts/${conceptId}`, data),
+
+  deleteConcept: (conceptId: string) => 
+    api.delete<APIResponse>(`/concepts/${conceptId}`),
 };
 
 // =====================================================
@@ -565,7 +724,7 @@ export const userAPI = {
     api.get<APIResponse>(`/users/students/department/${departmentId}`, { params: { studentClass } }),
 
   getEducatorStudents: () =>
-    api.get<APIResponse>('/users/students'),
+    api.get<APIResponse>('/users/my-students'),
 
   getAllUsers: (params?: { role?: string; page?: number; limit?: number }) =>
     api.get<APIResponse>('/users/admin/users', { params }),

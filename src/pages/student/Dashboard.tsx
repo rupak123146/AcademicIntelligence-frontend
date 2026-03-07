@@ -46,7 +46,10 @@ import {
   Cell,
 } from 'recharts';
 import { useAuthStore } from '@/store';
-import { analyticsAPI, getAccessToken } from '@/services/api';
+import { analyticsAPI, examAPI, getAccessToken } from '@/services/api';
+import GoalTracker from '@/components/GoalTracker';
+import PersonalizedFeedback from '@/components/PersonalizedFeedback';
+import LearningGapsView from '@/components/LearningGapsView';
 
 // Stat Card Component
 interface StatCardProps {
@@ -152,13 +155,29 @@ interface DashboardData {
   }>;
 }
 
+interface UpcomingExamItem {
+  id: number | string;
+  title: string;
+  startTime: string;
+}
+
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuthStore();
+  const activeCourseId = Number((user as any)?.currentCourseId) || 1;
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+  const [upcomingExams, setUpcomingExams] = useState<UpcomingExamItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hasFetched, setHasFetched] = useState(false);
+
+  const formatUpcomingDateTime = (dateString: string) => {
+    const date = new Date(dateString);
+    return {
+      date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      time: date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+    };
+  };
 
   useEffect(() => {
     const fetchDashboard = async () => {
@@ -174,9 +193,48 @@ const Dashboard: React.FC = () => {
       setHasFetched(true);
       
       try {
-        const response = await analyticsAPI.getStudentDashboard(user.id as number);
-        if (response.data.success) {
-          setDashboardData(response.data.data as DashboardData);
+        const [dashboardResult, examsResult] = await Promise.allSettled([
+          analyticsAPI.getStudentDashboard(user.id as number),
+          examAPI.getAvailableExams(),
+        ]);
+
+        if (dashboardResult.status === 'fulfilled' && dashboardResult.value.data.success) {
+          setDashboardData(dashboardResult.value.data.data as DashboardData);
+        }
+
+        if (examsResult.status === 'fulfilled' && examsResult.value.data.success) {
+          const examsPayload = examsResult.value.data.data as any;
+          const examsArray = Array.isArray(examsPayload)
+            ? examsPayload
+            : Array.isArray(examsPayload?.exams)
+              ? examsPayload.exams
+              : [];
+
+          const now = new Date();
+          const upcoming = examsArray
+            .filter((exam: any) => {
+              const scheduledAt = exam.startTime || exam.scheduledAt;
+              if (!scheduledAt) return false;
+
+              const status = exam.status;
+              const isUpcomingStatus = status === 'scheduled' || status === 'published' || status === 'active';
+              return isUpcomingStatus && new Date(scheduledAt) > now;
+            })
+            .sort((a: any, b: any) => {
+              const aDate = new Date(a.startTime || a.scheduledAt).getTime();
+              const bDate = new Date(b.startTime || b.scheduledAt).getTime();
+              return aDate - bDate;
+            })
+            .slice(0, 3)
+            .map((exam: any) => ({
+              id: exam.id,
+              title: exam.title,
+              startTime: exam.startTime || exam.scheduledAt,
+            }));
+
+          setUpcomingExams(upcoming);
+        } else {
+          setUpcomingExams([]);
         }
       } catch (err: any) {
         console.error('Failed to fetch dashboard:', err);
@@ -427,33 +485,38 @@ const Dashboard: React.FC = () => {
               </Button>
             </Box>
             <List disablePadding>
-              {[
-                { title: 'Physics Final', date: 'Feb 15', time: '10:00 AM' },
-                { title: 'Math Quiz 6', date: 'Feb 18', time: '2:00 PM' },
-                { title: 'Chemistry Lab', date: 'Feb 20', time: '9:00 AM' },
-              ].map((exam, index) => (
-                <ListItem
-                  key={index}
-                  sx={{
-                    px: 2,
-                    py: 1.5,
-                    mb: 1,
-                    borderRadius: 2,
-                    bgcolor: 'grey.50',
-                  }}
-                >
-                  <ListItemAvatar>
-                    <Avatar sx={{ bgcolor: 'primary.light' }}>
-                      <CalendarIcon />
-                    </Avatar>
-                  </ListItemAvatar>
-                  <ListItemText
-                    primary={exam.title}
-                    secondary={`${exam.date} at ${exam.time}`}
-                    primaryTypographyProps={{ fontWeight: 500 }}
-                  />
-                </ListItem>
-              ))}
+              {upcomingExams.length === 0 ? (
+                <Typography variant="body2" color="text.secondary" sx={{ px: 1, py: 2 }}>
+                  No upcoming exams scheduled
+                </Typography>
+              ) : (
+                upcomingExams.map((exam) => {
+                  const formatted = formatUpcomingDateTime(exam.startTime);
+                  return (
+                    <ListItem
+                      key={exam.id}
+                      sx={{
+                        px: 2,
+                        py: 1.5,
+                        mb: 1,
+                        borderRadius: 2,
+                        bgcolor: 'grey.50',
+                      }}
+                    >
+                      <ListItemAvatar>
+                        <Avatar sx={{ bgcolor: 'primary.light' }}>
+                          <CalendarIcon />
+                        </Avatar>
+                      </ListItemAvatar>
+                      <ListItemText
+                        primary={exam.title}
+                        secondary={`${formatted.date} at ${formatted.time}`}
+                        primaryTypographyProps={{ fontWeight: 500 }}
+                      />
+                    </ListItem>
+                  );
+                })
+              )}
             </List>
           </Paper>
         </Grid>
@@ -570,6 +633,49 @@ const Dashboard: React.FC = () => {
           </Paper>
         </Grid>
       </Grid>
+
+      {/* Phase 3 Features - New AI-Powered Analytics */}
+      <Box mt={4}>
+        <Typography variant="h5" fontWeight={700} gutterBottom sx={{ mb: 3 }}>
+          🤖 AI-Powered Insights
+        </Typography>
+        
+        {/* Personalized Feedback Section */}
+        <Grid container spacing={3} mb={4}>
+          <Grid item xs={12}>
+            <Paper sx={{ p: 3 }}>
+              <Typography variant="h6" fontWeight={600} mb={2}>
+                💬 Personalized Feedback
+              </Typography>
+              <PersonalizedFeedback courseId={activeCourseId} />
+            </Paper>
+          </Grid>
+        </Grid>
+
+        {/* Learning Gaps Section */}
+        <Grid container spacing={3} mb={4}>
+          <Grid item xs={12}>
+            <Paper sx={{ p: 3 }}>
+              <Typography variant="h6" fontWeight={600} mb={2}>
+                🎯 Learning Gap Analysis
+              </Typography>
+              <LearningGapsView courseId={activeCourseId} />
+            </Paper>
+          </Grid>
+        </Grid>
+
+        {/* Goals Section */}
+        <Grid container spacing={3}>
+          <Grid item xs={12}>
+            <Paper sx={{ p: 3 }}>
+              <Typography variant="h6" fontWeight={600} mb={2}>
+                🎯 My Learning Goals
+              </Typography>
+              <GoalTracker />
+            </Paper>
+          </Grid>
+        </Grid>
+      </Box>
     </Box>
   );
 };

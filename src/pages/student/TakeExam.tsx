@@ -207,28 +207,56 @@ const TakeExamPage: React.FC = () => {
     const qId = currentQuestion.id;
     const answer = answers.get(qId);
 
+    const normalizedOptions = (() => {
+      const rawOptions = Array.isArray(currentQuestion.options) ? currentQuestion.options : [];
+
+      if (currentQuestion.questionType === 'true_false' && rawOptions.length === 0) {
+        // Some true/false questions are stored without options in DB.
+        return [
+          { id: 'true', text: 'True' },
+          { id: 'false', text: 'False' },
+        ];
+      }
+
+      return rawOptions
+        .map((option: any) => ({
+          id: String(option.id ?? option._id ?? option.value ?? ''),
+          text: option.text || option.optionText || option.label || '',
+        }))
+        .filter((option: { id: string; text: string }) => option.id && option.text);
+    })();
+
     switch (currentQuestion.questionType) {
       case 'mcq':
+      case 'multiple':
       case 'multiple_choice':
       case 'true_false':
+        if (normalizedOptions.length === 0) {
+          return (
+            <Alert severity="warning">
+              Options are not configured for this question. Please contact your educator.
+            </Alert>
+          );
+        }
+
         return (
           <RadioGroup
             value={answer?.selectedOptionId || ''}
             onChange={(e) => handleAnswerChange(String(qId), e.target.value)}
           >
-            {currentQuestion.options?.map((option) => (
+            {normalizedOptions.map((option) => (
               <FormControlLabel
                 key={option.id}
                 value={option.id}
                 control={<Radio />}
-                label={option.text || option.optionText}
+                label={option.text}
                 sx={{
                   mb: 1,
                   p: 1.5,
                   borderRadius: 2,
-                  bgcolor: answer?.selectedOptionId === option.id ? 'primary.50' : 'transparent',
+                  bgcolor: String(answer?.selectedOptionId || '') === String(option.id) ? 'primary.50' : 'transparent',
                   border: '1px solid',
-                  borderColor: answer?.selectedOptionId === option.id ? 'primary.main' : 'divider',
+                  borderColor: String(answer?.selectedOptionId || '') === String(option.id) ? 'primary.main' : 'divider',
                   '&:hover': { bgcolor: 'action.hover' },
                 }}
               />

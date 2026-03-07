@@ -181,7 +181,14 @@ export const useAuthStore = create<AuthState>()(
         // Load user profile from API
         loadUser: async (): Promise<void> => {
           const token = getAccessToken();
-          if (!token) return;
+          if (!token) {
+            set({
+              user: null,
+              isAuthenticated: false,
+              isLoading: false,
+            });
+            return;
+          }
 
           set({ isLoading: true });
           

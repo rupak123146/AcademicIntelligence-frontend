@@ -63,6 +63,7 @@ interface Institution {
 
 interface Department {
   _id: string;
+  id?: string;
   name: string;
   code: string;
 }
@@ -204,6 +205,32 @@ const UserManagement: React.FC = () => {
   }, []);
 
   // Fetch departments and sections for assignment
+  const normalizeSections = (items: Section[] = []) => {
+    const seen = new Set<string>();
+    return items.filter((section: any) => {
+      const id = section?._id || section?.id;
+      const key = id || `${section?.departmentCode || ''}|${section?.year || ''}|${section?.name || ''}`;
+      if (!key || seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    });
+  };
+
+  const uniqueSectionsByLabel = (items: Section[] = []) => {
+    const seen = new Set<string>();
+    return items.filter((section: any) => {
+      const label = section?.displayName || `${section?.year || ''}Y - ${section?.name || ''}`;
+      const key = `${label}|${section?.departmentCode || ''}`;
+      if (seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    });
+  };
+
   const fetchDepartmentsAndSections = useCallback(async () => {
     try {
       const [deptRes, sectRes] = await Promise.all([
@@ -212,8 +239,14 @@ const UserManagement: React.FC = () => {
       ]);
       console.log('Departments fetched:', deptRes.data.data);
       console.log('Sections fetched:', sectRes.data.data);
-      setDepartments((deptRes.data.data as Department[]) || []);
-      setSections((sectRes.data.data as Section[]) || []);
+      const normalizedDepartments = ((deptRes.data.data as Department[]) || []).map((dept: any) => ({
+        _id: dept._id || dept.id,
+        id: dept.id || dept._id,
+        name: dept.name,
+        code: dept.code,
+      }));
+      setDepartments(normalizedDepartments);
+      setSections(normalizeSections((sectRes.data.data as Section[]) || []));
     } catch (err: any) {
       console.error('Failed to fetch departments/sections:', err);
     }
@@ -233,6 +266,30 @@ const UserManagement: React.FC = () => {
     fetchDepartmentsAndSections();
     fetchInstitutions();
   }, [hasFetched]);
+
+  // Auto-load sections when department changes in the form
+  useEffect(() => {
+    const loadSectionsForDepartment = async () => {
+      if (userForm.departmentId) {
+        try {
+          console.log('Loading sections for department:', userForm.departmentId);
+          const response = await authAPI.getSections(userForm.departmentId);
+          const sectionsData = normalizeSections(response.data.data || []);
+          console.log('Sections loaded:', sectionsData);
+          setSections(sectionsData);
+        } catch (error: any) {
+          console.error('Failed to load sections for department:', error);
+        }
+      } else {
+        // Load all sections if no department selected
+        fetchDepartmentsAndSections();
+      }
+    };
+    
+    if (createDialogOpen || editDialogOpen) {
+      loadSectionsForDepartment();
+    }
+  }, [userForm.departmentId, createDialogOpen, editDialogOpen]);
 
   const formatLastLogin = (dateString: string) => {
     const date = new Date(dateString);
@@ -774,7 +831,7 @@ const UserManagement: React.FC = () => {
                         </Box>
                       )}
                     >
-                      {sections
+                      {uniqueSectionsByLabel(sections)
                         .filter(s => !userForm.departmentId || s.departmentCode === departments.find(d => d._id === userForm.departmentId)?.code)
                         .map((section) => (
                           <MenuItem key={section._id} value={section._id}>
@@ -816,7 +873,7 @@ const UserManagement: React.FC = () => {
                       onChange={(e) => setUserForm({ ...userForm, sectionId: e.target.value })}
                     >
                       <MenuItem value="">-- Select Section --</MenuItem>
-                      {sections
+                      {uniqueSectionsByLabel(sections)
                         .filter(s => !userForm.departmentId || s.departmentCode === departments.find(d => d._id === userForm.departmentId)?.code)
                         .map((section) => (
                           <MenuItem key={section._id} value={section._id}>
@@ -883,7 +940,15 @@ const UserManagement: React.FC = () => {
                 <Select 
                   value={userForm.departmentId} 
                   label="Department" 
-                  onChange={(e) => setUserForm({ ...userForm, departmentId: e.target.value })}
+                  onChange={(e) => {
+                    setUserForm({ 
+                      ...userForm, 
+                      departmentId: e.target.value,
+                      // Clear section selections when department changes
+                      sectionId: '',
+                      assignedSections: []
+                    });
+                  }}
                 >
                   <MenuItem value="">-- Select Department --</MenuItem>
                   {departments.map((dept) => (
