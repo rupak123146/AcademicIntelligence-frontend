@@ -45,18 +45,31 @@ import {
 import { userAPI, taskAPI } from '@/services/api';
 
 interface Student {
-  _id: string;
+  id: string;
+  _id?: string; // For backward compatibility
   firstName: string;
   lastName: string;
   email: string;
   studentClass?: string;
+  rollNumber: string;
+  phoneNumber?: string;
+  currentSemester?: number;
+  studentId?: string;
+  section?: {
+    id: string;
+    name: string;
+    year: number;
+  };
   sectionId?: {
     _id: string;
     name: string;
     year?: number;
   };
-  rollNumber: string;
-  phoneNumber: string;
+  department?: {
+    id: string;
+    name: string;
+    code: string;
+  };
   departmentId?: {
     _id: string;
     name: string;
@@ -68,9 +81,13 @@ interface Student {
   };
 }
 
-// Helper function to extract class letter from studentClass (e.g., "3rd Year A" → "A")
+// Helper function to extract class letter from section
 const getClassLetter = (student: Student): string => {
-  // First check if sectionId has name
+  // First check if section has name from backend response
+  if (student.section?.name) {
+    return student.section.name;
+  }
+  // Fallback to sectionId from older response format
   if (student.sectionId?.name) {
     return student.sectionId.name;
   }
@@ -123,7 +140,19 @@ const EducatorStudentManagement: React.FC = () => {
       setLoading(true);
       try {
         const response = await userAPI.getEducatorStudents();
-        const studentData = response.data.data as Student[];
+        // Handle grouped response from /users/my-students endpoint
+        const sectionGroups = response.data.data as any[];
+        
+        // Flatten the grouped response into a single student array
+        const studentData: Student[] = [];
+        if (Array.isArray(sectionGroups)) {
+          sectionGroups.forEach((group) => {
+            if (group.students && Array.isArray(group.students)) {
+              studentData.push(...group.students);
+            }
+          });
+        }
+        
         setStudents(studentData);
         setFilteredStudents(studentData);
       } catch (error: any) {
@@ -178,7 +207,8 @@ const EducatorStudentManagement: React.FC = () => {
 
   const handleAssignTask = () => {
     if (selectedStudent) {
-      setSelectedStudents(new Set([selectedStudent._id]));
+      const studentId = selectedStudent._id || selectedStudent.id;
+      setSelectedStudents(new Set([studentId]));
       setTaskDialogOpen(true);
     }
     handleMenuClose();
@@ -198,7 +228,7 @@ const EducatorStudentManagement: React.FC = () => {
     if (selectedStudents.size === filteredStudents.length) {
       setSelectedStudents(new Set());
     } else {
-      setSelectedStudents(new Set(filteredStudents.map((s) => s._id)));
+      setSelectedStudents(new Set(filteredStudents.map((s) => s._id || s.id).filter((id) => id !== undefined)));
     }
   };
 
@@ -367,12 +397,14 @@ const EducatorStudentManagement: React.FC = () => {
             </TableHead>
             <TableBody>
               {filteredStudents.length > 0 ? (
-                filteredStudents.map((student) => (
-                  <TableRow key={student._id} hover>
+                filteredStudents.map((student) => {
+                  const studentId = student._id || student.id;
+                  return (
+                  <TableRow key={studentId} hover>
                     <TableCell padding="checkbox">
                       <Checkbox
-                        checked={selectedStudents.has(student._id)}
-                        onChange={() => handleSelectStudent(student._id)}
+                        checked={selectedStudents.has(studentId)}
+                        onChange={() => handleSelectStudent(studentId)}
                       />
                     </TableCell>
                     <TableCell>
@@ -410,7 +442,8 @@ const EducatorStudentManagement: React.FC = () => {
                       </IconButton>
                     </TableCell>
                   </TableRow>
-                ))
+                );
+                })
               ) : (
                 <TableRow>
                   <TableCell colSpan={6} align="center" sx={{ py: 8 }}>

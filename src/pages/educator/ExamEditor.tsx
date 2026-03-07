@@ -3,7 +3,7 @@
  * Complete exam creation and editing with questions
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Grid,
@@ -51,7 +51,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import { examAPI, questionAPI, authAPI } from '@/services/api';
+import { examAPI, questionAPI, authAPI, subjectAPI, chapterAPI } from '@/services/api';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -150,6 +150,43 @@ const ExamEditor: React.FC = () => {
   const [availableSections, setAvailableSections] = useState<SectionData[]>([]);
   const [availableDepartments, setAvailableDepartments] = useState<DepartmentData[]>([]);
 
+  // Chapter/Concept state
+  const [subjects, setSubjects] = useState<any[]>([]);
+  const [chapters, setChapters] = useState<any[]>([]);
+  const [concepts, setConcepts] = useState<any[]>([]);
+  const [newConceptName, setNewConceptName] = useState('');
+  const [isCreatingConcept, setIsCreatingConcept] = useState(false);
+  const chapterCacheRef = useRef<Record<string, any[]>>({});
+  const conceptCacheRef = useRef<Record<string, any[]>>({});
+
+  const dedupeSubjects = (items: any[] = []) => {
+    return Array.from(new Map(items.filter((item) => item?.id).map((item) => [item.id, item])).values());
+  };
+
+  const dedupeChapters = (items: any[] = []) => {
+    // Deduplicate by visible chapter identity to prevent repeated labels in dropdown.
+    return Array.from(
+      new Map(
+        items
+          .filter((item) => item?.id)
+          .map((item) => [
+            `${String(item.chapterNumber ?? '').trim()}::${String(item.name ?? '').trim().toLowerCase()}`,
+            item,
+          ])
+      ).values()
+    );
+  };
+
+  const dedupeConcepts = (items: any[] = []) => {
+    return Array.from(
+      new Map(
+        items
+          .filter((item) => item?.id)
+          .map((item) => [String(item.name ?? '').trim().toLowerCase(), item])
+      ).values()
+    );
+  };
+
   // Question form
   const [questionForm, setQuestionForm] = useState({
     questionText: '',
@@ -157,6 +194,9 @@ const ExamEditor: React.FC = () => {
     difficulty: 'medium',
     marks: 1,
     negativeMarks: 0,
+    subjectId: '',
+    chapterId: '',
+    conceptId: '',
     options: [
       { text: '', isCorrect: false },
       { text: '', isCorrect: false },
@@ -174,7 +214,97 @@ const ExamEditor: React.FC = () => {
     }
     fetchQuestionBank();
     fetchSectionsAndDepartments();
+    fetchSubjects();
   }, [examId]);
+
+  const fetchSubjects = async () => {
+    try {
+      const response = await subjectAPI.getSubjects({ limit: 500, simple: true });
+      const data = response.data.data as { subjects?: any[] } | any[];
+      const subjectsList = Array.isArray(data) ? data : (data?.subjects || []);
+      setSubjects(dedupeSubjects(subjectsList));
+    } catch (err: any) {
+      console.error('Failed to fetch subjects:', err);
+    }
+  };
+
+  const handleSubjectChange = async (subjectId: string) => {
+    setQuestionForm({ ...questionForm, subjectId, chapterId: '', conceptId: '' });
+    setChapters([]);
+    setConcepts([]);
+    setNewConceptName('');
+
+    if (subjectId && chapterCacheRef.current[subjectId]) {
+      setChapters(chapterCacheRef.current[subjectId]);
+      return;
+    }
+
+    if (subjectId) {
+      try {
+        const response = await subjectAPI.getChaptersBySubject(subjectId, { limit: 500, simple: true });
+        const data = response.data.data as { chapters?: any[] } | any[];
+        const chaptersList = Array.isArray(data) ? data : (data?.chapters || []);
+        const uniqueChapters = dedupeChapters(chaptersList);
+        chapterCacheRef.current[subjectId] = uniqueChapters;
+        setChapters(uniqueChapters);
+      } catch (err: any) {
+        console.error('Failed to fetch chapters:', err);
+      }
+    }
+  };
+
+  const handleChapterChange = async (chapterId: string) => {
+    setQuestionForm({ ...questionForm, chapterId, conceptId: '' });
+    setConcepts([]);
+    setNewConceptName('');
+
+    if (chapterId && conceptCacheRef.current[chapterId]) {
+      setConcepts(conceptCacheRef.current[chapterId]);
+      return;
+    }
+
+    if (chapterId) {
+      try {
+        const response = await chapterAPI.getConceptsByChapter(chapterId, { limit: 500, simple: true });
+        const data = response.data.data as { concepts?: any[] } | any[];
+        const conceptsList = Array.isArray(data) ? data : (data?.concepts || []);
+        const uniqueConcepts = dedupeConcepts(conceptsList);
+        conceptCacheRef.current[chapterId] = uniqueConcepts;
+        setConcepts(uniqueConcepts);
+      } catch (err: any) {
+        console.error('Failed to fetch concepts:', err);
+      }
+    }
+  };
+
+  const handleCreateConceptInline = async () => {
+    if (!questionForm.chapterId || !newConceptName.trim()) {
+      return;
+    }
+
+    setIsCreatingConcept(true);
+    try {
+      const response = await chapterAPI.createConcept(questionForm.chapterId, {
+        name: newConceptName.trim(),
+        difficultyLevel: 'medium',
+      });
+      const data = response.data.data as { id?: string; concept?: any } | any;
+      const createdConcept = data?.concept || data;
+
+      delete conceptCacheRef.current[questionForm.chapterId];
+      await handleChapterChange(questionForm.chapterId);
+
+      if (createdConcept?.id) {
+        setQuestionForm((prev) => ({ ...prev, conceptId: createdConcept.id }));
+      }
+      setNewConceptName('');
+      setSuccess('Concept created and selected successfully');
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to create concept');
+    } finally {
+      setIsCreatingConcept(false);
+    }
+  };
 
   // Fetch sections and departments for assignment
   const fetchSectionsAndDepartments = async () => {
@@ -283,9 +413,17 @@ const ExamEditor: React.FC = () => {
           title: examForm.title,
           description: examForm.description,
           instructions: examForm.instructions,
+          examType: examForm.examType,
           durationMinutes: examForm.durationMinutes,
+          totalMarks: examForm.totalMarks,
+          passingMarks: examForm.passingMarks,
           negativeMarking: examForm.negativeMarking,
+          negativeMarkValue: examForm.negativeMarkValue,
           shuffleQuestions: examForm.shuffleQuestions,
+          shuffleOptions: examForm.shuffleOptions,
+          showResult: examForm.showResult,
+          showAnswers: examForm.showAnswers,
+          maxAttempts: examForm.maxAttempts,
           startTime: examForm.startTime?.toISOString(),
           endTime: examForm.endTime?.toISOString(),
         };
@@ -315,8 +453,55 @@ const ExamEditor: React.FC = () => {
       setError('Invalid exam ID');
       return;
     }
+
+    const now = new Date();
+    if (examForm.endTime && examForm.endTime <= now) {
+      setError('End time must be in the future before publishing');
+      setTabValue(0);
+      return;
+    }
+
+    if (examForm.startTime && examForm.endTime && examForm.startTime >= examForm.endTime) {
+      setError('Start time must be before end time');
+      setTabValue(0);
+      return;
+    }
+
+    // Client-side validation for assignments
+    const hasAssignments = 
+      examForm.assignmentMode === 'all' ||
+      examForm.assignedSections.length > 0 ||
+      examForm.assignedDepartments.length > 0;
+
+    if (!hasAssignments) {
+      setError('Cannot publish exam without assignments. Please go to Assignment tab and select sections, departments, or change assignment mode to "All Students"');
+      setTabValue(2); // Switch to Assignment tab
+      return;
+    }
+
     setIsSaving(true);
     try {
+      // Persist latest editor values (especially schedule) before publishing.
+      const updateData = {
+        title: examForm.title,
+        description: examForm.description,
+        instructions: examForm.instructions,
+        examType: examForm.examType,
+        durationMinutes: examForm.durationMinutes,
+        totalMarks: examForm.totalMarks,
+        passingMarks: examForm.passingMarks,
+        negativeMarking: examForm.negativeMarking,
+        negativeMarkValue: examForm.negativeMarkValue,
+        shuffleQuestions: examForm.shuffleQuestions,
+        shuffleOptions: examForm.shuffleOptions,
+        showResult: examForm.showResult,
+        showAnswers: examForm.showAnswers,
+        maxAttempts: examForm.maxAttempts,
+        startTime: examForm.startTime?.toISOString(),
+        endTime: examForm.endTime?.toISOString(),
+      };
+
+      await examAPI.updateExam(examId, updateData);
       await examAPI.publishExam(examId);
       setSuccess('Exam published successfully');
       navigate('/educator/exams');
@@ -382,19 +567,56 @@ const ExamEditor: React.FC = () => {
 
   const handleCreateQuestion = async () => {
     try {
+      if (!questionForm.subjectId || !questionForm.chapterId || !questionForm.conceptId) {
+        setError('Subject, chapter, and concept are mandatory for question tracking');
+        return;
+      }
+
+      if (!questionForm.questionText || questionForm.questionText.trim().length < 5) {
+        setError('Question text must be at least 5 characters');
+        return;
+      }
+
+      if (!questionForm.marks || Number(questionForm.marks) <= 0) {
+        setError('Marks must be greater than 0');
+        return;
+      }
+
+      if (questionForm.questionType === 'mcq') {
+        const validOptions = questionForm.options.filter((o) => o.text && o.text.trim());
+        if (validOptions.length < 2) {
+          setError('MCQ must have at least 2 options');
+          return;
+        }
+        if (!questionForm.options.some((o) => o.isCorrect)) {
+          setError('MCQ must have one correct option selected');
+          return;
+        }
+      }
+
+      if (['true_false', 'short_answer'].includes(questionForm.questionType) && !questionForm.correctAnswer) {
+        setError('Please provide the correct answer for this question type');
+        return;
+      }
+
       const data = {
         questionText: questionForm.questionText,
         questionType: questionForm.questionType,
         difficulty: questionForm.difficulty,
         marks: questionForm.marks,
         negativeMarks: questionForm.negativeMarks,
-        options: questionForm.questionType === 'mcq' || questionForm.questionType === 'true_false'
+        subjectId: questionForm.subjectId,
+        chapterId: questionForm.chapterId,
+        conceptId: questionForm.conceptId,
+        options: questionForm.questionType === 'mcq'
           ? questionForm.options.filter(o => o.text).map((o) => ({
               text: o.text,
               isCorrect: o.isCorrect,
             }))
           : undefined,
-        correctAnswer: questionForm.questionType === 'short_answer' ? questionForm.correctAnswer : undefined,
+        correctAnswer: questionForm.questionType === 'true_false' || questionForm.questionType === 'short_answer' 
+          ? questionForm.correctAnswer 
+          : undefined,
         explanation: questionForm.explanation,
       };
 
@@ -412,7 +634,8 @@ const ExamEditor: React.FC = () => {
       resetQuestionForm();
       setSuccess('Question created successfully');
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to create question');
+      const detail = err.response?.data?.error?.details?.[0]?.message;
+      setError(detail || err.response?.data?.message || 'Failed to create question');
     }
   };
 
@@ -423,6 +646,9 @@ const ExamEditor: React.FC = () => {
       difficulty: 'medium',
       marks: 1,
       negativeMarks: 0,
+      subjectId: '',
+      chapterId: '',
+      conceptId: '',
       options: [
         { text: '', isCorrect: false },
         { text: '', isCorrect: false },
@@ -432,6 +658,9 @@ const ExamEditor: React.FC = () => {
       correctAnswer: '',
       explanation: '',
     });
+    setChapters([]);
+    setConcepts([]);
+    setNewConceptName('');
   };
 
   const getDifficultyColor = (diff: string) => {
@@ -823,9 +1052,12 @@ const ExamEditor: React.FC = () => {
             <Typography variant="h6" fontWeight={600} gutterBottom>
               Assign Exam To
             </Typography>
-            <Typography variant="body2" color="text.secondary" mb={3}>
+            <Typography variant="body2" color="text.secondary" mb={1}>
               Choose who can take this exam. As an educator, you can assign exams to sections within your department.
             </Typography>
+            <Alert severity="warning" sx={{ mb: 3 }}>
+              <strong>Required:</strong> You must assign this exam to at least one section/department or select "All Students" before publishing.
+            </Alert>
 
             <FormControl component="fieldset">
               <RadioGroup
@@ -959,7 +1191,10 @@ const ExamEditor: React.FC = () => {
                 {examForm.assignedDepartments.length > 0 && (
                   <Typography variant="body2">
                     Departments: {availableDepartments
-                      .filter(d => examForm.assignedDepartments.includes(d._id))
+                      .filter(d => {
+                        const deptId = d._id || d.id;
+                        return deptId ? examForm.assignedDepartments.includes(deptId) : false;
+                      })
                       .map(d => d.name)
                       .join(', ')}
                   </Typography>
@@ -1141,7 +1376,78 @@ const ExamEditor: React.FC = () => {
                 />
               </Grid>
 
-              {(questionForm.questionType === 'mcq' || questionForm.questionType === 'true_false') && (
+              {/* Subject/Chapter/Concept Selection */}
+              <Grid item xs={12} sm={4}>
+                <FormControl fullWidth required>
+                  <InputLabel>Subject</InputLabel>
+                  <Select
+                    value={questionForm.subjectId}
+                    label="Subject"
+                    onChange={(e) => handleSubjectChange(e.target.value)}
+                  >
+                    {subjects.map((subject) => (
+                      <MenuItem key={subject.id} value={subject.id}>
+                        {subject.name} ({subject.code})
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <FormControl fullWidth required disabled={!questionForm.subjectId}>
+                  <InputLabel>Chapter</InputLabel>
+                  <Select
+                    value={questionForm.chapterId}
+                    label="Chapter"
+                    onChange={(e) => handleChapterChange(e.target.value)}
+                  >
+                    {chapters.map((chapter) => (
+                      <MenuItem key={chapter.id} value={chapter.id}>
+                        Ch {chapter.chapterNumber}: {chapter.name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <FormControl fullWidth required disabled={!questionForm.chapterId}>
+                  <InputLabel>Concept</InputLabel>
+                  <Select
+                    value={questionForm.conceptId}
+                    label="Concept"
+                    onChange={(e) => setQuestionForm({ ...questionForm, conceptId: e.target.value })}
+                  >
+                    {concepts.map((concept) => (
+                      <MenuItem key={concept.id} value={concept.id}>
+                        {concept.name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+
+              <Grid item xs={12}>
+                <Box display="flex" gap={2} alignItems="center">
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Create Concept (if not listed)"
+                    value={newConceptName}
+                    onChange={(e) => setNewConceptName(e.target.value)}
+                    disabled={!questionForm.chapterId || isCreatingConcept}
+                    placeholder="Enter new concept name"
+                  />
+                  <Button
+                    variant="outlined"
+                    onClick={handleCreateConceptInline}
+                    disabled={!questionForm.chapterId || !newConceptName.trim() || isCreatingConcept}
+                  >
+                    {isCreatingConcept ? 'Creating...' : 'Create Concept'}
+                  </Button>
+                </Box>
+              </Grid>
+
+              {questionForm.questionType === 'mcq' && (
                 <Grid item xs={12}>
                   <Typography variant="subtitle2" gutterBottom>
                     Answer Options (check the correct answer)
@@ -1153,11 +1459,7 @@ const ExamEditor: React.FC = () => {
                         onChange={(e) => {
                           const newOptions = [...questionForm.options];
                           // For MCQ, only one can be correct
-                          if (questionForm.questionType === 'mcq') {
-                            newOptions.forEach((o, i) => o.isCorrect = i === idx && e.target.checked);
-                          } else {
-                            newOptions[idx].isCorrect = e.target.checked;
-                          }
+                          newOptions.forEach((o, i) => o.isCorrect = i === idx && e.target.checked);
                           setQuestionForm({ ...questionForm, options: newOptions });
                         }}
                       />
@@ -1174,6 +1476,22 @@ const ExamEditor: React.FC = () => {
                       />
                     </Box>
                   ))}
+                </Grid>
+              )}
+
+              {questionForm.questionType === 'true_false' && (
+                <Grid item xs={12}>
+                  <FormControl>
+                    <Typography variant="subtitle2" gutterBottom>Correct Answer</Typography>
+                    <RadioGroup
+                      row
+                      value={questionForm.correctAnswer}
+                      onChange={(e) => setQuestionForm({ ...questionForm, correctAnswer: e.target.value })}
+                    >
+                      <FormControlLabel value="true" control={<Radio />} label="True" />
+                      <FormControlLabel value="false" control={<Radio />} label="False" />
+                    </RadioGroup>
+                  </FormControl>
                 </Grid>
               )}
 
@@ -1205,7 +1523,15 @@ const ExamEditor: React.FC = () => {
             <Button
               variant="contained"
               onClick={handleCreateQuestion}
-              disabled={!questionForm.questionText}
+              disabled={
+                !questionForm.questionText ||
+                !questionForm.subjectId ||
+                !questionForm.chapterId ||
+                !questionForm.conceptId ||
+                (questionForm.questionType === 'mcq' && questionForm.options.filter((o) => o.text && o.text.trim()).length < 2) ||
+                (questionForm.questionType === 'mcq' && !questionForm.options.some((o) => o.isCorrect)) ||
+                (['true_false', 'short_answer'].includes(questionForm.questionType) && !questionForm.correctAnswer)
+              }
             >
               Create Question
             </Button>

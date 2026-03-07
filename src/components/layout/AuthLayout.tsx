@@ -2,25 +2,38 @@
  * 🎓 Academic Intelligence Platform - Auth Layout
  */
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Outlet, Navigate } from 'react-router-dom';
 import { Box, Container, Typography, Paper } from '@mui/material';
 import { School as SchoolIcon } from '@mui/icons-material';
 import { useAuthStore } from '@/store';
+import { getAccessToken } from '@/services/api';
 
 const AuthLayout: React.FC = () => {
-  const { isAuthenticated, user } = useAuthStore();
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const userRole = useAuthStore((state) => state.user?.role);
+  const hasToken = Boolean(getAccessToken());
+
+  // Memoize redirect path to prevent re-renders
+  const redirectPath = useMemo(() => {
+    // Only redirect out of auth pages when both store and token indicate logged-in state.
+    if (!isAuthenticated || !hasToken || !userRole) return null;
+    
+    switch (userRole) {
+      case 'student':
+        return '/student';
+      case 'educator':
+        return '/educator';
+      case 'admin':
+        return '/admin';
+      default:
+        return null;
+    }
+  }, [isAuthenticated, hasToken, userRole]);
 
   // Redirect authenticated users to their dashboard
-  if (isAuthenticated && user) {
-    switch (user.role) {
-      case 'student':
-        return <Navigate to="/student" replace />;
-      case 'educator':
-        return <Navigate to="/educator" replace />;
-      case 'admin':
-        return <Navigate to="/admin" replace />;
-    }
+  if (redirectPath) {
+    return <Navigate to={redirectPath} replace />;
   }
 
   return (

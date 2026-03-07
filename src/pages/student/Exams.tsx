@@ -274,10 +274,10 @@ const ExamsPage: React.FC = () => {
   // Categorize exams
   const now = new Date();
   const available = examsArray.filter(e => 
-    e.status === 'published' || e.status === 'active'
+    (e.status === 'published' || e.status === 'active') && (!e.startTime || new Date(e.startTime) <= now)
   );
   const upcoming = examsArray.filter(e => 
-    e.status === 'scheduled' && e.startTime && new Date(e.startTime) > now
+    (e.status === 'published' || e.status === 'active') && e.startTime && new Date(e.startTime) > now
   );
   const completedAttempts = attemptsArray.filter(a => 
     a.status === 'submitted' || a.status === 'graded'

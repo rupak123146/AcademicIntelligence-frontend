@@ -165,7 +165,8 @@ const ExamManagement: React.FC = () => {
       // Refresh exams list after creation
       await fetchExams();
     } else {
-      alert(`Failed to create exam: ${examsError || 'Unknown error'}`);
+      const latestError = useExamStore.getState().examsError;
+      alert(`Failed to create exam: ${latestError || 'Unknown error'}`);
     }
   };
 

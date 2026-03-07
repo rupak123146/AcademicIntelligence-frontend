@@ -42,6 +42,7 @@ import {
   Assessment as AssessmentIcon,
 } from '@mui/icons-material';
 import { useAuthStore } from '@/store';
+import NotificationCenter from '@/components/NotificationCenter';
 
 const DRAWER_WIDTH = 280;
 
@@ -248,14 +249,8 @@ const MainLayout: React.FC = () => {
 
           <Box sx={{ flex: 1 }} />
 
-          {/* Notifications */}
-          <Tooltip title="Notifications">
-            <IconButton sx={{ mr: 1 }}>
-              <Badge badgeContent={3} color="error">
-                <NotificationsIcon />
-              </Badge>
-            </IconButton>
-          </Tooltip>
+          {/* Notifications - NotificationCenter Component */}
+          <NotificationCenter />
 
           {/* Profile menu */}
           <Tooltip title="Account">

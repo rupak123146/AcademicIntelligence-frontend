@@ -137,10 +137,18 @@ const StudentProfilePage: React.FC = () => {
         return;
       }
     } else if (activeStep === 1) {
-      if (!profile.studentClass || !profile.departmentId || !profile.rollNumber) {
+      if (!profile.rollNumber) {
         setSnackbar({
           open: true,
-          message: 'Please fill in all academic details',
+          message: 'Please fill in your roll number',
+          severity: 'error',
+        });
+        return;
+      }
+      if (!profile.departmentId) {
+        setSnackbar({
+          open: true,
+          message: 'Department not assigned. Please contact your administrator.',
           severity: 'error',
         });
         return;
@@ -171,10 +179,10 @@ const StudentProfilePage: React.FC = () => {
   };
 
   const handleSubmit = async () => {
-    if (!profile.departmentId || !profile.studentClass) {
+    if (!profile.departmentId) {
       setSnackbar({
         open: true,
-        message: 'Department and Class are mandatory fields',
+        message: 'Department not assigned. Please contact your administrator to assign a department before completing your profile.',
         severity: 'error',
       });
       return;
@@ -316,19 +324,21 @@ const StudentProfilePage: React.FC = () => {
             <Typography variant="h6" fontWeight={600} mb={3}>
               Academic Details
             </Typography>
-            <Alert severity="info" sx={{ mb: 2 }}>
-              Department and Class are mandatory fields. These help educators find and assign tasks to you.
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              Department and Class are assigned by your admin. If these fields are empty or incorrect, please contact your administrator to update them.
             </Alert>
             <Grid container spacing={2}>
               <Grid item xs={12} sm={6}>
-                <FormControl fullWidth required>
+                <FormControl fullWidth required disabled>
                   <InputLabel>Department *</InputLabel>
                   <Select
                     name="departmentId"
                     value={profile.departmentId}
                     label="Department *"
                     onChange={handleChange}
+                    disabled
                   >
+                    <MenuItem value="">Not Assigned</MenuItem>
                     {departments.map((dept) => (
                       <MenuItem key={dept._id} value={dept._id}>
                         {dept.name}

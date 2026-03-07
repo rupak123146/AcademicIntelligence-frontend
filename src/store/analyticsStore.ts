@@ -77,6 +77,129 @@ interface AnalyticsState {
   clearError: () => void;
 }
 
+const asArray = (value: any): any[] => {
+  if (Array.isArray(value)) return value;
+  if (Array.isArray(value?.chapters)) return value.chapters;
+  if (Array.isArray(value?.concepts)) return value.concepts;
+  if (Array.isArray(value?.chapterPerformances)) return value.chapterPerformances;
+  if (Array.isArray(value?.conceptPerformances)) return value.conceptPerformances;
+  if (Array.isArray(value?.difficultyPerformances)) return value.difficultyPerformances;
+  if (Array.isArray(value?.dataPoints)) return value.dataPoints;
+  if (Array.isArray(value?.gaps)) return value.gaps;
+  if (value) return [value];
+  return [];
+};
+
+const toNumber = (value: any, fallback = 0): number => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const toSeverity = (score: number): 'high' | 'medium' | 'low' => {
+  if (score < 40) return 'high';
+  if (score < 70) return 'medium';
+  return 'low';
+};
+
+const toGrade = (score: number): string => {
+  if (score >= 90) return 'A';
+  if (score >= 80) return 'B';
+  if (score >= 70) return 'C';
+  if (score >= 60) return 'D';
+  return 'F';
+};
+
+const mapChapterPerformance = (raw: any): any[] => {
+  const chapters = asArray(raw);
+  return chapters.map((item: any) => {
+    const score = toNumber(item.accuracy ?? item.score ?? item.percentage, 0);
+    return {
+      name: item.name ?? item.chapter ?? 'Unknown',
+      score,
+      target: 75,
+      totalQuestions: toNumber(item.totalQuestions, 0),
+    };
+  });
+};
+
+const mapConceptMastery = (raw: any): any[] => {
+  const source = asArray(raw);
+  return source.map((item: any) => {
+    const mastery = toNumber(item.mastery ?? item.accuracy ?? item.score ?? item.percentage, 0);
+    return {
+      concept: item.concept ?? item.conceptName ?? item.chapter ?? item.name ?? 'General',
+      mastery,
+    };
+  });
+};
+
+const mapDifficultyAnalysis = (raw: any): DifficultyPerformance[] => {
+  const source = Array.isArray(raw)
+    ? raw
+    : raw && typeof raw === 'object' && !Array.isArray(raw)
+      ? (
+          Array.isArray(raw?.difficultyPerformances)
+            ? raw.difficultyPerformances
+            : Object.entries(raw)
+                .filter(([, value]) => value && typeof value === 'object')
+                .map(([difficulty, value]) => ({ difficulty, ...(value as object) }))
+        )
+      : asArray(raw);
+
+  return source.map((item: any) => {
+    const total = toNumber(item.total ?? item.totalQuestions, 0);
+    const correct = toNumber(item.correct ?? item.correctAnswers, 0);
+    const accuracy = toNumber(item.accuracy, total > 0 ? (correct / total) * 100 : 0);
+    return {
+      difficulty: (item.difficulty ?? 'medium') as any,
+      totalQuestions: total,
+      correctAnswers: correct,
+      accuracy,
+      averageTime: toNumber(item.averageTime ?? item.averageTimeSeconds, 0),
+    } as DifficultyPerformance;
+  });
+};
+
+const mapPerformanceTrend = (raw: any): any[] => {
+  const source = asArray(raw);
+  return source.map((item: any, index: number) => {
+    const score = toNumber(item.score ?? item.percentage ?? item.value, 0);
+    const dateLabel = item.date
+      ? new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      : `Exam ${toNumber(item.attemptNumber, index + 1)}`;
+
+    return {
+      date: dateLabel,
+      score,
+    };
+  });
+};
+
+const mapLearningGaps = (raw: any): LearningGap[] => {
+  const source = asArray(raw);
+  return source.map((item: any) => {
+    const score = toNumber(item.score ?? item.accuracy, 0);
+    return {
+      topic: item.topic ?? item.conceptName ?? item.chapter ?? 'General',
+      chapter: item.chapter ?? item.chapterName ?? 'N/A',
+      score,
+      severity: (item.severity ?? toSeverity(score)) as any,
+      recommendation: item.recommendation ?? item.description ?? 'Practice and review this area.',
+    } as LearningGap;
+  });
+};
+
+const mapStudentSummary = (raw: any): any => {
+  const overview = raw?.overview || raw || {};
+  const overallScore = toNumber(overview.avgPercentage ?? overview.averageScore ?? overview.overallScore, 0);
+  return {
+    overallScore,
+    averageScore: overallScore,
+    currentGrade: overview.currentGrade || toGrade(overallScore),
+    improvement: toNumber(raw?.improvement, 0),
+  };
+};
+
 export const useAnalyticsStore = create<AnalyticsState>()(
   devtools(
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -115,7 +238,10 @@ export const useAnalyticsStore = create<AnalyticsState>()(
         set({ isLoading: true, error: null });
         try {
           const response = await analyticsAPI.getMyAnalytics();
-          set({ studentAnalytics: response.data.data, isLoading: false });
+          set({
+            studentAnalytics: mapStudentSummary(response.data.data),
+            isLoading: false,
+          });
         } catch (error: any) {
           set({
             isLoading: false,
@@ -128,7 +254,10 @@ export const useAnalyticsStore = create<AnalyticsState>()(
         set({ isLoading: true, error: null });
         try {
           const response = await analyticsAPI.getMyChapterPerformance();
-          set({ chapterPerformance: response.data.data as any[], isLoading: false });
+          set({
+            chapterPerformance: mapChapterPerformance(response.data.data),
+            isLoading: false,
+          });
         } catch (error: any) {
           set({
             isLoading: false,
@@ -142,7 +271,10 @@ export const useAnalyticsStore = create<AnalyticsState>()(
         set({ isLoading: true, error: null });
         try {
           const response = await analyticsAPI.getMyConceptMastery();
-          set({ conceptMastery: response.data.data as any[], isLoading: false });
+          set({
+            conceptMastery: mapConceptMastery(response.data.data),
+            isLoading: false,
+          });
         } catch (error: any) {
           set({
             isLoading: false,
@@ -156,10 +288,10 @@ export const useAnalyticsStore = create<AnalyticsState>()(
         set({ isLoading: true, error: null });
         try {
           const response = await analyticsAPI.getMyDifficultyAnalysis();
-          // Convert to array if needed
-          const data = response.data.data;
-          const difficultyArray = Array.isArray(data) ? data : (data ? [data] : []);
-          set({ difficultyAnalysis: difficultyArray as DifficultyPerformance[], isLoading: false });
+          set({
+            difficultyAnalysis: mapDifficultyAnalysis(response.data.data),
+            isLoading: false,
+          });
         } catch (error: any) {
           set({
             isLoading: false,
@@ -173,17 +305,10 @@ export const useAnalyticsStore = create<AnalyticsState>()(
         set({ isLoading: true, error: null });
         try {
           const response = await analyticsAPI.getMyPerformanceTrend();
-          // Convert to array if needed - API might return trend with dataPoints array
-          const data = response.data.data as any;
-          let trendArray: any[] = [];
-          if (Array.isArray(data)) {
-            trendArray = data;
-          } else if (data?.dataPoints) {
-            trendArray = data.dataPoints;
-          } else if (data) {
-            trendArray = [data];
-          }
-          set({ performanceTrend: trendArray, isLoading: false });
+          set({
+            performanceTrend: mapPerformanceTrend(response.data.data),
+            isLoading: false,
+          });
         } catch (error: any) {
           set({
             isLoading: false,
@@ -197,7 +322,10 @@ export const useAnalyticsStore = create<AnalyticsState>()(
         set({ isLoading: true, error: null });
         try {
           const response = await analyticsAPI.getMyLearningGaps();
-          set({ learningGaps: response.data.data as LearningGap[], isLoading: false });
+          set({
+            learningGaps: mapLearningGaps(response.data.data),
+            isLoading: false,
+          });
         } catch (error: any) {
           set({
             isLoading: false,

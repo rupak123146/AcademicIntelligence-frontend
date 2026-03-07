@@ -15,7 +15,6 @@ import {
   Avatar,
   List,
   ListItem,
-  ListItemText,
   Table,
   TableBody,
   TableCell,
@@ -59,6 +58,9 @@ interface Student {
   firstName: string;
   lastName: string;
   email: string;
+  phoneNumber?: string;
+  studentId?: string;
+  rollNumber?: string;
   averageScore: number;
   totalExams: number;
   trend: number;
@@ -73,6 +75,8 @@ interface StudentDetail {
     score: number;
     date: string;
     grade: string;
+    timeAttended?: number;
+    timeFormatted?: string;
   }>;
   performanceTrend: Array<{
     month: string;
@@ -110,6 +114,9 @@ const StudentProgress: React.FC = () => {
         firstName: s.firstName || '',
         lastName: s.lastName || '',
         email: s.email || '',
+        phoneNumber: s.phoneNumber,
+        studentId: s.studentId,
+        rollNumber: s.rollNumber,
         averageScore: s.averageScore || 0,
         totalExams: s.totalExams || s.examsTaken || 0,
         trend: s.trend || 0,
@@ -276,6 +283,8 @@ const StudentProgress: React.FC = () => {
           <TableHead>
             <TableRow>
               <TableCell>Student</TableCell>
+              <TableCell align="center">Roll No.</TableCell>
+              <TableCell align="center">Phone</TableCell>
               <TableCell align="center">Average Score</TableCell>
               <TableCell align="center">Exams Taken</TableCell>
               <TableCell align="center">Trend</TableCell>
@@ -300,6 +309,12 @@ const StudentProgress: React.FC = () => {
                         </Typography>
                       </Box>
                     </Box>
+                  </TableCell>
+                  <TableCell align="center">
+                    <Typography variant="body2">{student.rollNumber || 'N/A'}</Typography>
+                  </TableCell>
+                  <TableCell align="center">
+                    <Typography variant="body2">{student.phoneNumber || 'N/A'}</Typography>
                   </TableCell>
                   <TableCell align="center">
                     <Chip
@@ -357,6 +372,16 @@ const StudentProgress: React.FC = () => {
               <Typography variant="body2" color="text.secondary">
                 {selectedStudent?.email}
               </Typography>
+              {selectedStudent?.rollNumber && (
+                <Typography variant="body2" color="text.secondary">
+                  Roll No: {selectedStudent.rollNumber}
+                </Typography>
+              )}
+              {selectedStudent?.phoneNumber && (
+                <Typography variant="body2" color="text.secondary">
+                  Phone: {selectedStudent.phoneNumber}
+                </Typography>
+              )}
             </Box>
           </Box>
         </DialogTitle>
@@ -441,16 +466,27 @@ const StudentProgress: React.FC = () => {
                           borderColor: 'divider',
                         }}
                       >
-                        <ListItemText
-                          primary={exam.examTitle}
-                          secondary={new Date(exam.date).toLocaleDateString()}
-                          primaryTypographyProps={{ fontWeight: 500 }}
-                        />
+                        <Box flex={1}>
+                          <Typography fontWeight={500} mb={0.5}>{exam.examTitle}</Typography>
+                          <Box display="flex" gap={2} alignItems="center">
+                            <Typography variant="caption" color="text.secondary">
+                              {new Date(exam.date).toLocaleDateString()}
+                            </Typography>
+                            {exam.timeAttended && (
+                              <Chip 
+                                label={`${exam.timeAttended} min attended`}
+                                size="small"
+                                variant="outlined"
+                              />
+                            )}
+                          </Box>
+                        </Box>
                         <Box textAlign="right">
                           <Chip
                             label={`${exam.score}%`}
                             color={getGradeColor(exam.score) as any}
                             size="small"
+                            sx={{ mb: 0.5 }}
                           />
                           <Typography variant="caption" display="block" color="text.secondary">
                             Grade: {exam.grade}

@@ -157,9 +157,8 @@ const ExamResultsPage: React.FC = () => {
   const strengths: string[] = [];
   const improvements: string[] = [];
 
-  const timeTaken = result.submittedAt && result.startedAt 
-    ? Math.round((new Date(result.submittedAt).getTime() - new Date(result.startedAt).getTime()) / 60000)
-    : null;
+  // Use backend's calculated timeInMinutes
+  const timeAttendedMinutes = (result as any).timeInMinutes || 0;
 
   return (
     <Box>
@@ -289,14 +288,14 @@ const ExamResultsPage: React.FC = () => {
                   </ListItemIcon>
                   <ListItemText primary="Total Questions" />
                 </ListItem>
-                {timeTaken && (
+                {timeAttendedMinutes > 0 && (
                   <ListItem>
                     <ListItemIcon>
                       <Avatar sx={{ bgcolor: 'success.light', width: 36, height: 36 }}>
                         <TrendingUpIcon />
                       </Avatar>
                     </ListItemIcon>
-                    <ListItemText primary={`Time Taken: ${timeTaken} minutes`} />
+                    <ListItemText primary={`Time Attended: ${timeAttendedMinutes} minutes`} />
                   </ListItem>
                 )}
                 <ListItem>
@@ -338,7 +337,7 @@ const ExamResultsPage: React.FC = () => {
         )}
 
         {/* Detailed Answer Review */}
-        {result.answers && result.answers.length > 0 && (
+        {result.showAnswers && result.answers && result.answers.length > 0 && (
           <Grid item xs={12}>
             <Card>
               <CardContent>
@@ -481,6 +480,14 @@ const ExamResultsPage: React.FC = () => {
                 </Box>
               </CardContent>
             </Card>
+          </Grid>
+        )}
+
+        {!result.showAnswers && (
+          <Grid item xs={12}>
+            <Alert severity="info">
+              Detailed answer review is disabled for this exam by your educator.
+            </Alert>
           </Grid>
         )}
 
