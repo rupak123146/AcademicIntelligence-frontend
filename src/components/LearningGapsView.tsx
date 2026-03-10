@@ -18,7 +18,6 @@ import {
   ListItemIcon,
   ListItemText,
   Button,
-  Tooltip,
   Paper,
   Skeleton,
 } from '@mui/material';
@@ -63,7 +62,7 @@ interface LearningGapsViewProps {
 
 const LearningGapsView: React.FC<LearningGapsViewProps> = ({ studentId, courseId }) => {
   const { user } = useAuthStore();
-  const actualStudentId = studentId || user.id;
+  const actualStudentId = studentId || user?.id;
   
   const [gapsData, setGapsData] = useState<LearningGapsData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -74,12 +73,17 @@ const LearningGapsView: React.FC<LearningGapsViewProps> = ({ studentId, courseId
   }, [actualStudentId, courseId]);
 
   const loadGaps = async () => {
+    if (!actualStudentId) {
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
       
       const response = await analyticsAPI.getLearningGaps(actualStudentId, courseId);
-      setGapsData(response.data.data);
+      setGapsData(response.data.data as LearningGapsData);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to load learning gaps');
     } finally {

@@ -20,19 +20,13 @@ import {
   Chip,
   LinearProgress,
   Alert,
-  List,
-  ListItem,
-  ListItemText,
   Tabs,
   Tab,
   IconButton,
   Tooltip,
-  Paper,
-  Divider,
 } from '@mui/material';
 import {
   Add as AddIcon,
-  Edit as EditIcon,
   PlayArrow as PlayArrowIcon,
   CheckCircle as CheckCircleIcon,
   Pending as PendingIcon,
@@ -42,11 +36,20 @@ import {
   Info as InfoIcon,
 } from '@mui/icons-material';
 import { interventionAPI } from '@/services/api';
+import { authAPI } from '@/services/api';
 import { useAuthStore } from '@/store/authStore';
 
+interface Student {
+  id: string;
+  firstName: string;
+  lastName: string;
+  studentId?: string;
+  rollNumber?: string;
+}
+
 interface Intervention {
-  id: number;
-  studentId: number;
+  id: string;
+  studentId: string;
   studentName: string;
   interventionType: string;
   reason: string;
@@ -67,6 +70,7 @@ const InterventionDashboard: React.FC = () => {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [checkinDialogOpen, setCheckinDialogOpen] = useState(false);
   const [selectedIntervention, setSelectedIntervention] = useState<Intervention | null>(null);
+  const [students, setStudents] = useState<Student[]>([]);
   
   const [newIntervention, setNewIntervention] = useState({
     studentId: '',
@@ -83,21 +87,57 @@ const InterventionDashboard: React.FC = () => {
   });
 
   useEffect(() => {
-    loadInterventions();
+    if (user?.id) {
+      loadInterventions();
+      loadStudents();
+    }
   }, []);
 
+  const loadStudents = async () => {
+    try {
+      const response = await authAPI.getMyStudents();
+      const data = response.data as any;
+      // Flatten sections → students
+      const allStudents: Student[] = [];
+      if (Array.isArray(data?.data)) {
+        for (const section of data.data) {
+          if (Array.isArray(section?.students)) {
+            allStudents.push(...section.students);
+          }
+        }
+      }
+      setStudents(allStudents);
+    } catch {
+      // Silently fail — student list is non-critical
+    }
+  };
+
   const loadInterventions = async () => {
+    if (!user?.id) {
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
       
-      // For demonstration - in real app, get all interventions for educator
-      const response = await interventionAPI.getEffectiveness({
-        educatorId: user.id,
-      });
+      const response = await interventionAPI.getEducatorInterventions();
+      const data = (response.data?.data || []) as any[];
       
-      // Transform data - this would need to be adjusted based on actual API response
-      setInterventions([]);
+      setInterventions(data.map((i: any) => ({
+        id: i.id,
+        studentId: i.studentId,
+        studentName: i.studentName || 'Unknown',
+        interventionType: i.interventionType,
+        reason: i.reason,
+        plannedActions: i.plannedActions,
+        status: i.status,
+        startDate: i.actualStartDate || i.createdAt,
+        estimatedDuration: i.estimatedDuration || 0,
+        progress: i.checkins?.[0]?.progress || 'on_track',
+        checkinsCount: i.checkins?.length || 0,
+      })));
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to load interventions');
     } finally {
@@ -106,11 +146,16 @@ const InterventionDashboard: React.FC = () => {
   };
 
   const handleCreateIntervention = async () => {
+    if (!user?.id) {
+      setError('User session not found');
+      return;
+    }
+
     try {
       await interventionAPI.createIntervention({
-        studentId: parseInt(newIntervention.studentId),
+        studentId: newIntervention.studentId,
         educatorId: user.id,
-        courseId: user.currentCourseId || 1,
+        courseId: 'general',
         interventionType: newIntervention.interventionType,
         reason: newIntervention.reason,
         plannedActions: newIntervention.plannedActions,
@@ -133,7 +178,7 @@ const InterventionDashboard: React.FC = () => {
     }
   };
 
-  const handleStartIntervention = async (interventionId: number) => {
+  const handleStartIntervention = async (interventionId: string) => {
     try {
       await interventionAPI.startIntervention(interventionId);
       loadInterventions();
@@ -427,13 +472,19 @@ const InterventionDashboard: React.FC = () => {
         <DialogContent>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2 }}>
             <TextField
-              label="Student ID"
-              type="number"
+              select
+              label="Select Student"
               value={newIntervention.studentId}
               onChange={(e) => setNewIntervention({ ...newIntervention, studentId: e.target.value })}
               fullWidth
-              helperText="Enter the student ID who needs intervention"
-            />
+              helperText={students.length === 0 ? 'No students found in your department' : 'Select the student who needs intervention'}
+            >
+              {students.map((s) => (
+                <MenuItem key={s.id} value={s.id}>
+                  {s.firstName} {s.lastName} {s.studentId ? `(${s.studentId})` : s.rollNumber ? `(${s.rollNumber})` : ''}
+                </MenuItem>
+              ))}
+            </TextField>
 
             <TextField
               select

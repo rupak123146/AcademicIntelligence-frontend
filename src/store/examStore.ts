@@ -38,12 +38,12 @@ interface ExamState {
   // Actions - Exam management
   fetchExams: (params?: { courseId?: number; status?: string }) => Promise<void>;
   fetchAvailableExams: () => Promise<void>;
-  fetchExam: (id: number) => Promise<void>;
-  fetchExamById: (id: string) => Promise<void>;
+  fetchExam: (id: number | string) => Promise<void>;
+  fetchExamById: (id: number | string) => Promise<void>;
   createExam: (data: any) => Promise<boolean>;
-  updateExam: (id: number, data: any) => Promise<boolean>;
-  deleteExam: (id: number) => Promise<boolean>;
-  publishExam: (id: number) => Promise<boolean>;
+  updateExam: (id: number | string, data: any) => Promise<boolean>;
+  deleteExam: (id: number | string) => Promise<boolean>;
+  publishExam: (id: number | string) => Promise<boolean>;
 
   // Actions - Exam taking
   startExam: (examId: number | string) => Promise<boolean>;
@@ -51,6 +51,7 @@ interface ExamState {
   loadAttempt: (attemptId: number | string) => Promise<boolean>;
   saveAnswer: (attemptId: string, questionId: string, selectedOptionId?: string, textAnswer?: string) => Promise<void>;
   markQuestionForReview: (attemptId: string, questionId: string, marked: boolean) => Promise<void>;
+  skipQuestion: (attemptId: string, questionId: string) => Promise<void>;
   submitExam: (attemptId: string) => Promise<boolean>;
   navigateToQuestion: (index: number) => void;
   nextQuestion: () => void;
@@ -59,8 +60,8 @@ interface ExamState {
 
   // Actions - Results
   fetchMyAttempts: (params?: { courseId?: number }) => Promise<void>;
-  fetchResults: (attemptId: number) => Promise<ExamAttempt | null>;
-  fetchAttemptResults: (attemptId: string) => Promise<ExamAttempt | null>;
+  fetchResults: (attemptId: number | string) => Promise<ExamAttempt | null>;
+  fetchAttemptResults: (attemptId: number | string) => Promise<ExamAttempt | null>;
 
   // Utility
   clearCurrentExam: () => void;
@@ -120,7 +121,7 @@ export const useExamStore = create<ExamState>()(
       },
 
       // Fetch single exam
-      fetchExam: async (id: number) => {
+      fetchExam: async (id: number | string) => {
         set({ isLoadingExams: true, examsError: null });
         try {
           const response = await examAPI.getExam(id);
@@ -134,7 +135,7 @@ export const useExamStore = create<ExamState>()(
       },
 
       // Fetch single exam by string ID
-      fetchExamById: async (id: string) => {
+      fetchExamById: async (id: number | string) => {
         set({ isLoadingExams: true, examsError: null });
         try {
           const response = await examAPI.getExam(id as any);
@@ -280,7 +281,14 @@ export const useExamStore = create<ExamState>()(
             questions: Question[];
             answers?: StudentAnswer[];
           }
-          const { attempt, questions, answers: savedAnswers } = response.data.data as ResumeExamResponse;
+          const resumeData = response.data.data as ResumeExamResponse & {
+            examId?: string | number;
+            examTitle?: string;
+            instructions?: string;
+            durationMinutes?: number;
+            totalMarks?: number;
+          };
+          const { attempt, questions, answers: savedAnswers } = resumeData;
 
           // Build answers map from saved answers
           const answersMap = new Map<string | number, StudentAnswer>();
@@ -295,11 +303,11 @@ export const useExamStore = create<ExamState>()(
           const remaining = Math.max(0, totalTime - elapsed);
 
           const currentExam = {
-            id: response.data.data.examId,
-            title: response.data.data.examTitle,
-            instructions: response.data.data.instructions,
-            durationMinutes: response.data.data.durationMinutes,
-            totalMarks: response.data.data.totalMarks,
+            id: resumeData.examId,
+            title: resumeData.examTitle,
+            instructions: resumeData.instructions,
+            durationMinutes: resumeData.durationMinutes,
+            totalMarks: resumeData.totalMarks,
           } as Exam;
 
           set({
@@ -394,6 +402,7 @@ export const useExamStore = create<ExamState>()(
           });
         } catch (error) {
           console.error('Failed to save answer:', error);
+          throw error;
         }
       },
 
@@ -414,6 +423,27 @@ export const useExamStore = create<ExamState>()(
           });
         } catch (error) {
           console.error('Failed to mark for review:', error);
+        }
+      },
+
+      skipQuestion: async (attemptId: string, questionId: string) => {
+        try {
+          await examAPI.skipQuestion(attemptId as any, questionId as any);
+          set((state) => {
+            const newAnswers = new Map(state.answers);
+            const existing = newAnswers.get(questionId);
+            if (existing) {
+              newAnswers.set(questionId, {
+                ...existing,
+                selectedAnswer: undefined,
+                isAnswered: false,
+                isMarkedForReview: false,
+              } as StudentAnswer);
+            }
+            return { answers: newAnswers };
+          });
+        } catch (error) {
+          console.error('Failed to skip question:', error);
         }
       },
 
@@ -480,7 +510,7 @@ export const useExamStore = create<ExamState>()(
       },
 
       // Fetch results
-      fetchResults: async (attemptId: number): Promise<ExamAttempt | null> => {
+      fetchResults: async (attemptId: number | string): Promise<ExamAttempt | null> => {
         set({ isLoadingExams: true });
         try {
           const response = await examAPI.getResults(attemptId);
@@ -496,7 +526,7 @@ export const useExamStore = create<ExamState>()(
       },
 
       // Fetch attempt results by string ID
-      fetchAttemptResults: async (attemptId: string): Promise<ExamAttempt | null> => {
+      fetchAttemptResults: async (attemptId: number | string): Promise<ExamAttempt | null> => {
         set({ isLoadingExams: true });
         try {
           const response = await examAPI.getResults(attemptId as any);

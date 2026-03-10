@@ -43,7 +43,6 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { useAuthStore, useAnalyticsStore, useExamStore } from '@/store';
-import InterventionDashboard from '@/components/InterventionDashboard';
 
 interface StatCardProps {
   title: string;
@@ -442,10 +441,21 @@ const Dashboard: React.FC = () => {
 
       {/* Intervention Tracking Section */}
       <Box mt={4}>
-        <Typography variant="h5" fontWeight={700} gutterBottom sx={{ mb: 3 }}>
-          🎓 Student Intervention Tracking
-        </Typography>
-        <InterventionDashboard />
+        <Card sx={{ cursor: 'pointer' }} onClick={() => navigate('/educator/interventions')}>
+          <CardContent sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Box>
+              <Typography variant="h6" fontWeight={700}>
+                🎓 Student Intervention Tracking
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Create, manage, and track student interventions
+              </Typography>
+            </Box>
+            <Button variant="outlined" endIcon={<ArrowForwardIcon />}>
+              View Interventions
+            </Button>
+          </CardContent>
+        </Card>
       </Box>
     </Box>
   );

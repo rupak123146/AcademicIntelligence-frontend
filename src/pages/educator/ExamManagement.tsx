@@ -224,7 +224,42 @@ const ExamManagement: React.FC = () => {
     if (!exams) return [];
     const base = dedupeExams(exams);
     if (!status || status === 'all') return base;
-    return base.filter((e) => e.status === status);
+    return base.filter((e) => getEffectiveStatus(e) === status);
+  };
+
+  const getEffectiveStatus = (exam: Exam) => {
+    // Draft exams should always show as draft regardless of time
+    if (exam.status === 'draft') {
+      return 'draft';
+    }
+
+    const now = new Date();
+    const startAt = exam.startTime
+      ? new Date(exam.startTime)
+      : (exam.createdAt ? new Date(exam.createdAt) : null);
+    const endAt = (() => {
+      if (startAt && exam.durationMinutes) {
+        const computed = new Date(startAt);
+        computed.setMinutes(computed.getMinutes() + exam.durationMinutes);
+        if (exam.endTime) {
+          const explicitEnd = new Date(exam.endTime);
+          return computed <= explicitEnd ? computed : explicitEnd;
+        }
+        return computed;
+      }
+      if (exam.endTime) return new Date(exam.endTime);
+      return null;
+    })();
+
+    if (endAt && endAt <= now) {
+      return 'completed';
+    }
+
+    if (exam.status === 'published' && startAt && startAt > now) {
+      return 'scheduled';
+    }
+
+    return exam.status;
   };
 
   const getTabExams = () => {
@@ -252,15 +287,17 @@ const ExamManagement: React.FC = () => {
       setMenuAnchorEl(null);
     };
 
+    const effectiveStatus = getEffectiveStatus(exam);
+
     return (
       <Card sx={{ height: '100%', transition: 'all 0.2s', '&:hover': { transform: 'translateY(-4px)', boxShadow: 4 }, position: 'relative', overflow: 'visible' }}>
         <CardContent>
           <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
-            <Avatar sx={{ bgcolor: exam.status === 'active' || exam.status === 'published' ? 'success.light' : exam.status === 'scheduled' ? 'warning.light' : 'primary.light' }}>
+            <Avatar sx={{ bgcolor: effectiveStatus === 'active' || effectiveStatus === 'published' ? 'success.light' : effectiveStatus === 'scheduled' ? 'warning.light' : 'primary.light' }}>
               <AssignmentIcon />
             </Avatar>
             <Box display="flex" alignItems="center" gap={1}>
-              <Chip label={exam.status} size="small" color={getStatusColor(exam.status) as any} icon={getStatusIcon(exam.status)} />
+              <Chip label={effectiveStatus} size="small" color={getStatusColor(effectiveStatus) as any} icon={getStatusIcon(effectiveStatus)} />
               <IconButton size="small" onClick={handleMenuOpen}>
                 <MoreIcon />
               </IconButton>
@@ -323,7 +360,7 @@ const ExamManagement: React.FC = () => {
           <MenuItem onClick={() => { navigate(`/educator/exams/${exam.id}/edit`); handleMenuClose(); }}>
             <EditIcon sx={{ mr: 1 }} /> Edit & Assign
           </MenuItem>
-          {exam.status === 'draft' && (
+          {effectiveStatus === 'draft' && (
             <MenuItem onClick={() => { handlePublish(exam); handleMenuClose(); }}>
               <StartIcon sx={{ mr: 1 }} /> Publish
             </MenuItem>
@@ -331,7 +368,7 @@ const ExamManagement: React.FC = () => {
           <MenuItem
             onClick={() => { setSelectedExam(exam); setDeleteDialogOpen(true); handleMenuClose(); }}
             sx={{ color: 'error.main' }}
-            disabled={['active', 'completed'].includes(exam.status)}
+            disabled={['active', 'completed'].includes(effectiveStatus)}
           >
             <DeleteIcon sx={{ mr: 1 }} /> Delete
           </MenuItem>

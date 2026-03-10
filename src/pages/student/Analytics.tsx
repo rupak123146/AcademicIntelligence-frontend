@@ -29,6 +29,10 @@ import {
   Warning as WarningIcon,
   Star as StarIcon,
   Lightbulb as LightbulbIcon,
+  Feedback as FeedbackIcon,
+  CheckCircle as CheckCircleIcon,
+  ArrowUpward as ArrowUpwardIcon,
+  EmojiEvents as EmojiEventsIcon,
 } from '@mui/icons-material';
 import {
   BarChart,
@@ -69,6 +73,7 @@ const AnalyticsPage: React.FC = () => {
     difficultyAnalysis,
     performanceTrend,
     learningGaps,
+    feedback,
     isLoading,
     error,
     fetchStudentAnalytics,
@@ -77,6 +82,7 @@ const AnalyticsPage: React.FC = () => {
     fetchDifficultyAnalysis,
     fetchPerformanceTrend,
     fetchLearningGaps,
+    fetchMyFeedback,
     clearError,
   } = useAnalyticsStore();
 
@@ -97,6 +103,7 @@ const AnalyticsPage: React.FC = () => {
           fetchDifficultyAnalysis(),
           fetchPerformanceTrend(),
           fetchLearningGaps(),
+          fetchMyFeedback(),
         ]);
       } finally {
         setPageLoading(false);
@@ -249,6 +256,7 @@ const AnalyticsPage: React.FC = () => {
           <Tab label="Difficulty" />
           <Tab label="Trend" />
           <Tab label="Gaps" />
+          <Tab label="AI Feedback" />
         </Tabs>
       </Paper>
 
@@ -321,16 +329,16 @@ const AnalyticsPage: React.FC = () => {
                 <Grid item xs={12} sm={4} key={item.difficulty}>
                   <Card>
                     <CardContent sx={{ p: { xs: 2, md: 2 } }}>
-                      <Typography variant="h6" gutterBottom sx={{ fontSize: { xs: '0.9rem', md: '1.25rem' } }}>{item.difficulty}</Typography>
+                      <Typography variant="h6" gutterBottom sx={{ fontSize: { xs: '0.9rem', md: '1.25rem' }, textTransform: 'capitalize' }}>{item.difficulty}</Typography>
                       <Typography fontWeight={700} color="primary" sx={{ fontSize: { xs: '1.75rem', md: '2.5rem' } }}>
-                        {item.total > 0 ? Math.round((item.correct / item.total) * 100) : 0}%
+                        {Math.round(item.accuracy || 0)}%
                       </Typography>
                       <Typography variant="body2" color="text.secondary" mb={1} sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' } }}>
-                        {item.correct} / {item.total} correct
+                        {item.correctAnswers} / {item.totalQuestions} correct
                       </Typography>
                       <LinearProgress
                         variant="determinate"
-                        value={item.total > 0 ? (item.correct / item.total) * 100 : 0}
+                        value={item.accuracy || 0}
                         sx={{ height: { xs: 6, md: 8 }, borderRadius: 4 }}
                       />
                     </CardContent>
@@ -409,7 +417,7 @@ const AnalyticsPage: React.FC = () => {
                     primary={
                       <Box display="flex" alignItems="center" gap={1} flexWrap="wrap">
                         <Typography variant="subtitle1" fontWeight={600} sx={{ fontSize: { xs: '0.9rem', md: '1rem' } }}>
-                          {gap.topic}
+                          {gap.conceptName || gap.chapterName || gap.topic || 'Unknown'}
                         </Typography>
                         <Chip
                           label={(gap.severity || 'unknown').toUpperCase()}
@@ -422,7 +430,7 @@ const AnalyticsPage: React.FC = () => {
                     secondary={
                       <>
                         <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' } }}>
-                          Current Score: {gap.score}%
+                          Current Score: {gap.currentAccuracy ?? gap.score ?? 0}%
                         </Typography>
                         {gap.recommendation && (
                           <Typography variant="body2" sx={{ mt: 1, fontSize: { xs: '0.75rem', md: '0.875rem' } }}>
@@ -443,6 +451,146 @@ const AnalyticsPage: React.FC = () => {
               </Typography>
               <Typography variant="body2" color="text.secondary">
                 Keep up the good work! Complete more exams to get personalized recommendations.
+              </Typography>
+            </Box>
+          )}
+        </Paper>
+      </TabPanel>
+
+      {/* AI Feedback */}
+      <TabPanel value={tabValue} index={5}>
+        <Paper sx={{ p: { xs: 2, md: 3 } }}>
+          <Typography variant="h6" fontWeight={600} gutterBottom sx={{ fontSize: { xs: '1rem', md: '1.25rem' } }}>
+            AI-Powered Personalized Feedback
+          </Typography>
+          {feedback ? (
+            <Box>
+              {/* Summary */}
+              {feedback.summary && (
+                <Alert severity="info" sx={{ mb: 3 }}>
+                  <Typography variant="body1">{feedback.summary}</Typography>
+                </Alert>
+              )}
+
+              {/* Strengths */}
+              {feedback.strengths && feedback.strengths.length > 0 && (
+                <Box mb={3}>
+                  <Typography variant="subtitle1" fontWeight={600} color="success.main" gutterBottom>
+                    <CheckCircleIcon sx={{ fontSize: 20, mr: 1, verticalAlign: 'text-bottom' }} />
+                    Strengths
+                  </Typography>
+                  <List dense sx={{ p: 0 }}>
+                    {feedback.strengths.map((item: any, idx: number) => (
+                      <ListItem key={idx} sx={{ py: 1, px: 1.5, bgcolor: 'rgba(16, 185, 129, 0.08)', borderRadius: 1, mb: 1, border: '1px solid', borderColor: 'rgba(16, 185, 129, 0.2)' }}>
+                        <ListItemText
+                          primary={<Typography variant="subtitle2" fontWeight={600} color="text.primary">{item.title}</Typography>}
+                          secondary={<Typography variant="body2" color="text.secondary">{item.description}</Typography>}
+                        />
+                      </ListItem>
+                    ))}
+                  </List>
+                </Box>
+              )}
+
+              {/* Areas for Improvement */}
+              {feedback.improvements && feedback.improvements.length > 0 && (
+                <Box mb={3}>
+                  <Typography variant="subtitle1" fontWeight={600} color="warning.main" gutterBottom>
+                    <ArrowUpwardIcon sx={{ fontSize: 20, mr: 1, verticalAlign: 'text-bottom' }} />
+                    Areas for Improvement
+                  </Typography>
+                  <List dense sx={{ p: 0 }}>
+                    {feedback.improvements.map((item: any, idx: number) => (
+                      <ListItem key={idx} sx={{ py: 1, px: 1.5, bgcolor: 'rgba(245, 158, 11, 0.08)', borderRadius: 1, mb: 1, border: '1px solid', borderColor: 'rgba(245, 158, 11, 0.2)' }}>
+                        <ListItemText
+                          primary={<Typography variant="subtitle2" fontWeight={600} color="text.primary">{item.title}</Typography>}
+                          secondary={
+                            <>
+                              <Typography variant="body2" color="text.secondary">{item.description}</Typography>
+                              {item.actionItems && item.actionItems.length > 0 && (
+                                <Box mt={0.5}>
+                                  {item.actionItems.map((action: string, ai: number) => (
+                                    <Chip key={ai} label={action} size="small" variant="outlined" sx={{ mr: 0.5, mt: 0.5, fontSize: '0.7rem' }} />
+                                  ))}
+                                </Box>
+                              )}
+                            </>
+                          }
+                        />
+                      </ListItem>
+                    ))}
+                  </List>
+                </Box>
+              )}
+
+              {/* Recommendations */}
+              {feedback.recommendations && feedback.recommendations.length > 0 && (
+                <Box mb={3}>
+                  <Typography variant="subtitle1" fontWeight={600} color="primary" gutterBottom>
+                    <LightbulbIcon sx={{ fontSize: 20, mr: 1, verticalAlign: 'text-bottom' }} />
+                    Recommendations
+                  </Typography>
+                  <List dense sx={{ p: 0 }}>
+                    {feedback.recommendations.map((item: any, idx: number) => (
+                      <ListItem key={idx} sx={{ py: 1, px: 1.5, bgcolor: 'rgba(37, 99, 235, 0.08)', borderRadius: 1, mb: 1, border: '1px solid', borderColor: 'rgba(37, 99, 235, 0.2)' }}>
+                        <ListItemText
+                          primary={<Typography variant="subtitle2" fontWeight={600} color="text.primary">{item.title}</Typography>}
+                          secondary={<Typography variant="body2" color="text.secondary">{item.description}</Typography>}
+                        />
+                      </ListItem>
+                    ))}
+                  </List>
+                </Box>
+              )}
+
+              {/* Achievements */}
+              {feedback.achievements && feedback.achievements.length > 0 && (
+                <Box mb={3}>
+                  <Typography variant="subtitle1" fontWeight={600} color="secondary" gutterBottom>
+                    <EmojiEventsIcon sx={{ fontSize: 20, mr: 1, verticalAlign: 'text-bottom' }} />
+                    Achievements
+                  </Typography>
+                  <List dense sx={{ p: 0 }}>
+                    {feedback.achievements.map((item: any, idx: number) => (
+                      <ListItem key={idx} sx={{ py: 1, px: 1.5, bgcolor: 'rgba(124, 58, 237, 0.08)', borderRadius: 1, mb: 1, border: '1px solid', borderColor: 'rgba(124, 58, 237, 0.2)' }}>
+                        <ListItemText
+                          primary={<Typography variant="subtitle2" fontWeight={600} color="text.primary">{item.title}</Typography>}
+                          secondary={<Typography variant="body2" color="text.secondary">{item.description}</Typography>}
+                        />
+                      </ListItem>
+                    ))}
+                  </List>
+                </Box>
+              )}
+
+              {/* Warnings */}
+              {feedback.warnings && feedback.warnings.length > 0 && (
+                <Box mb={3}>
+                  <Typography variant="subtitle1" fontWeight={600} color="error" gutterBottom>
+                    <WarningIcon sx={{ fontSize: 20, mr: 1, verticalAlign: 'text-bottom' }} />
+                    Warnings
+                  </Typography>
+                  <List dense sx={{ p: 0 }}>
+                    {feedback.warnings.map((item: any, idx: number) => (
+                      <ListItem key={idx} sx={{ py: 1, px: 1.5, bgcolor: 'rgba(239, 68, 68, 0.08)', borderRadius: 1, mb: 1, border: '1px solid', borderColor: 'rgba(239, 68, 68, 0.2)' }}>
+                        <ListItemText
+                          primary={<Typography variant="subtitle2" fontWeight={600} color="text.primary">{item.title}</Typography>}
+                          secondary={<Typography variant="body2" color="text.secondary">{item.description}</Typography>}
+                        />
+                      </ListItem>
+                    ))}
+                  </List>
+                </Box>
+              )}
+            </Box>
+          ) : (
+            <Box textAlign="center" py={8}>
+              <FeedbackIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
+              <Typography variant="h6" color="text.secondary">
+                No feedback available yet
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Complete exams to receive AI-powered personalized feedback on your performance.
               </Typography>
             </Box>
           )}

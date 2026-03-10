@@ -17,10 +17,6 @@ import {
   MenuItem,
   Chip,
   Avatar,
-  List,
-  ListItem,
-  ListItemAvatar,
-  ListItemText,
   Table,
   TableBody,
   TableCell,
@@ -167,15 +163,6 @@ const SystemAnalytics: React.FC = () => {
 
           systemData.departmentUsage = deptUsage;
         }
-
-        // Generate system metrics (health checks)
-        systemData.systemMetrics = [
-          { metric: 'API Response Time', value: '125ms', status: 'good', trend: -5 },
-          { metric: 'Database Status', value: 'Healthy', status: 'good', trend: 0 },
-          { metric: 'Active Sessions', value: String(systemData.totalUsers || 0), status: 'good', trend: 8 },
-          { metric: 'Error Rate', value: '< 1%', status: 'good', trend: -10 },
-          { metric: 'Cache Hit Rate', value: '95%', status: 'good', trend: 2 },
-        ];
 
         setStats((prev) => ({ ...prev, ...systemData }));
       } catch (err: any) {

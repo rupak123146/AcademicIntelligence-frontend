@@ -102,6 +102,7 @@ const ExamEditor: React.FC = () => {
   const [isLoadingBank, setIsLoadingBank] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const saveInFlightRef = useRef(false);
 
   // Exam form state
   const [examForm, setExamForm] = useState({
@@ -398,6 +399,12 @@ const ExamEditor: React.FC = () => {
       setIsLoadingBank(false);
     }
   };  const handleSave = async () => {
+    // Guard against rapid double-clicks before React state disables the button.
+    if (saveInFlightRef.current || isSaving) {
+      return;
+    }
+
+    saveInFlightRef.current = true;
     setIsSaving(true);
     setError(null);
     try {
@@ -405,6 +412,7 @@ const ExamEditor: React.FC = () => {
         // Validate examId for updates
         if (!examId || examId.length === 0) {
           setError('Invalid exam ID');
+          saveInFlightRef.current = false;
           setIsSaving(false);
           return;
         }
@@ -444,6 +452,7 @@ const ExamEditor: React.FC = () => {
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to save exam');
     } finally {
+      saveInFlightRef.current = false;
       setIsSaving(false);
     }
   };

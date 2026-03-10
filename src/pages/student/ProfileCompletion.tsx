@@ -24,8 +24,9 @@ import {
   Select,
   MenuItem,
   Snackbar,
+  SelectChangeEvent,
 } from '@mui/material';
-import { CheckCircle as CheckIcon, Edit as EditIcon } from '@mui/icons-material';
+import { CheckCircle as CheckIcon } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { authAPI } from '@/services/api';
 
@@ -34,7 +35,7 @@ interface StudentProfile {
   lastName: string;
   email: string;
   studentClass: string;
-  rollNumber: string;
+  studentId: string;
   phoneNumber: string;
   departmentId: string;
   guardianName: string;
@@ -57,13 +58,13 @@ const StudentProfilePage: React.FC = () => {
     lastName: '',
     email: '',
     studentClass: '',
-    rollNumber: '',
+    studentId: '',
     phoneNumber: '',
     departmentId: '',
     guardianName: '',
     guardianPhone: '',
     address: '',
-    dateOfBirth: '',
+    dateOfBirth: ''
   });
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
@@ -82,14 +83,14 @@ const StudentProfilePage: React.FC = () => {
       try {
         // Fetch current user profile
         const response = await authAPI.getProfile();
-        const userData = response.data.data;
+        const userData = (response.data.data || {}) as Record<string, any>;
         
         setProfile({
           firstName: userData.firstName || '',
           lastName: userData.lastName || '',
           email: userData.email || '',
           studentClass: userData.studentClass || '',
-          rollNumber: userData.rollNumber || '',
+          studentId: userData.studentId || userData.rollNumber || '',
           phoneNumber: userData.phoneNumber || '',
           departmentId: userData.departmentId || '',
           guardianName: userData.guardianName || '',
@@ -137,14 +138,6 @@ const StudentProfilePage: React.FC = () => {
         return;
       }
     } else if (activeStep === 1) {
-      if (!profile.rollNumber) {
-        setSnackbar({
-          open: true,
-          message: 'Please fill in your roll number',
-          severity: 'error',
-        });
-        return;
-      }
       if (!profile.departmentId) {
         setSnackbar({
           open: true,
@@ -170,8 +163,11 @@ const StudentProfilePage: React.FC = () => {
     setActiveStep((prev) => Math.max(prev - 1, 0));
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | { name?: string; value: any }>) => {
-    const { name, value } = e.target as HTMLInputElement;
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | SelectChangeEvent<string>
+  ) => {
+    const { name, value } = e.target as { name?: string; value: string };
+    if (!name) return;
     setProfile((prev) => ({
       ...prev,
       [name]: value,
@@ -358,17 +354,17 @@ const StudentProfilePage: React.FC = () => {
                   required
                 />
               </Grid>
-              <Grid item xs={12}>
-                <TextField
-                  fullWidth
-                  label="Roll Number *"
-                  name="rollNumber"
-                  placeholder="e.g., 001, CSE-001"
-                  value={profile.rollNumber}
-                  onChange={handleChange}
-                  required
-                />
-              </Grid>
+              {profile.studentId && (
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    label="USN / Student ID"
+                    value={profile.studentId}
+                    disabled
+                    helperText="Assigned by admin. Contact your administrator to update."
+                  />
+                </Grid>
+              )}
             </Grid>
           </Box>
         )}
@@ -474,16 +470,18 @@ const StudentProfilePage: React.FC = () => {
                   </CardContent>
                 </Card>
               </Grid>
-              <Grid item xs={12} sm={6}>
-                <Card variant="outlined">
-                  <CardContent>
-                    <Typography color="textSecondary" gutterBottom>
-                      Roll Number
-                    </Typography>
-                    <Typography variant="body2">{profile.rollNumber || 'Not filled'}</Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
+              {profile.studentId && (
+                <Grid item xs={12} sm={6}>
+                  <Card variant="outlined">
+                    <CardContent>
+                      <Typography color="textSecondary" gutterBottom>
+                        USN / Student ID
+                      </Typography>
+                      <Typography variant="body2">{profile.studentId}</Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              )}
               <Grid item xs={12} sm={6}>
                 <Card variant="outlined">
                   <CardContent>

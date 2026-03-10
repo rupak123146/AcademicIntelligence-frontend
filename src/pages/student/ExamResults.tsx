@@ -28,6 +28,7 @@ import {
   Star as StarIcon,
   TrendingUp as TrendingUpIcon,
   Lightbulb as LightbulbIcon,
+  School as SchoolIcon,
 } from '@mui/icons-material';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
@@ -153,9 +154,18 @@ const ExamResultsPage: React.FC = () => {
   ];
 
   // Initialize optional data arrays
-  const topicPerformance = [];
-  const strengths: string[] = [];
-  const improvements: string[] = [];
+  const topicPerformance: Array<{ topic: string; correct: number; total: number }> =
+    (result.analytics?.topicPerformance as Array<{ topic: string; correct: number; total: number }> | undefined) || [];
+  const feedback = (result as any).feedback as {
+    overallFeedback?: string;
+    strengths?: Array<{ type: string; priority: string; message: string }>;
+    weaknesses?: Array<{ type: string; priority: string; message: string }>;
+    recommendations?: Array<{ type: string; priority: string; message: string }>;
+    nextSteps?: string[];
+  } | null;
+  const strengths: string[] = (feedback?.strengths || []).map((s) => s.message);
+  const improvements: string[] = (feedback?.weaknesses || []).map((w) => w.message);
+  const canShowAnswers = Boolean((result as any).showAnswers);
 
   // Use backend's calculated timeInMinutes
   const timeAttendedMinutes = (result as any).timeInMinutes || 0;
@@ -217,7 +227,7 @@ const ExamResultsPage: React.FC = () => {
                 {Math.round(result.percentage || 0)}%
               </Typography>
               <Typography variant="body1" color="text.secondary" mb={2}>
-                {result.totalScore || 0} / {result.maxScore || 0} marks
+                {result.totalScore || 0} / {result.totalMarks || 0} marks
               </Typography>
               {result.passed !== undefined && (
                 <Chip
@@ -337,7 +347,7 @@ const ExamResultsPage: React.FC = () => {
         )}
 
         {/* Detailed Answer Review */}
-        {result.showAnswers && result.answers && result.answers.length > 0 && (
+        {canShowAnswers && result.answers && result.answers.length > 0 && (
           <Grid item xs={12}>
             <Card>
               <CardContent>
@@ -483,7 +493,7 @@ const ExamResultsPage: React.FC = () => {
           </Grid>
         )}
 
-        {!result.showAnswers && (
+        {!canShowAnswers && (
           <Grid item xs={12}>
             <Alert severity="info">
               Detailed answer review is disabled for this exam by your educator.
@@ -540,6 +550,89 @@ const ExamResultsPage: React.FC = () => {
                             <TrendingUpIcon color="warning" />
                           </ListItemIcon>
                           <ListItemText primary={improvement} />
+                        </ListItem>
+                      ))}
+                    </List>
+                  </CardContent>
+                </Card>
+              </Grid>
+            )}
+          </>
+        )}
+
+        {/* Overall Feedback & Recommendations */}
+        {feedback && (
+          <>
+            {feedback.overallFeedback && (
+              <Grid item xs={12}>
+                <Card>
+                  <CardContent>
+                    <Box display="flex" alignItems="center" gap={1} mb={2}>
+                      <Avatar sx={{ bgcolor: 'primary.light' }}>
+                        <SchoolIcon color="primary" />
+                      </Avatar>
+                      <Typography variant="h6" fontWeight={600}>
+                        AI Feedback Summary
+                      </Typography>
+                    </Box>
+                    <Typography variant="body1" color="text.secondary">
+                      {feedback.overallFeedback}
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+            )}
+
+            {feedback.recommendations && feedback.recommendations.length > 0 && (
+              <Grid item xs={12} md={6}>
+                <Card sx={{ height: '100%' }}>
+                  <CardContent>
+                    <Box display="flex" alignItems="center" gap={1} mb={2}>
+                      <Avatar sx={{ bgcolor: 'info.light' }}>
+                        <LightbulbIcon color="info" />
+                      </Avatar>
+                      <Typography variant="h6" fontWeight={600}>
+                        Recommendations
+                      </Typography>
+                    </Box>
+                    <List>
+                      {feedback.recommendations.map((rec, index: number) => (
+                        <ListItem key={index}>
+                          <ListItemIcon>
+                            <Chip
+                              label={rec.priority}
+                              size="small"
+                              color={rec.priority === 'high' ? 'error' : rec.priority === 'medium' ? 'warning' : 'info'}
+                            />
+                          </ListItemIcon>
+                          <ListItemText primary={rec.message} />
+                        </ListItem>
+                      ))}
+                    </List>
+                  </CardContent>
+                </Card>
+              </Grid>
+            )}
+
+            {feedback.nextSteps && feedback.nextSteps.length > 0 && (
+              <Grid item xs={12} md={6}>
+                <Card sx={{ height: '100%' }}>
+                  <CardContent>
+                    <Box display="flex" alignItems="center" gap={1} mb={2}>
+                      <Avatar sx={{ bgcolor: 'secondary.light' }}>
+                        <TrendingUpIcon color="secondary" />
+                      </Avatar>
+                      <Typography variant="h6" fontWeight={600}>
+                        Next Steps
+                      </Typography>
+                    </Box>
+                    <List>
+                      {feedback.nextSteps.map((step: string, index: number) => (
+                        <ListItem key={index}>
+                          <ListItemIcon>
+                            <Chip label={index + 1} size="small" color="primary" />
+                          </ListItemIcon>
+                          <ListItemText primary={step} />
                         </ListItem>
                       ))}
                     </List>

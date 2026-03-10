@@ -56,11 +56,6 @@ import { authAPI } from '@/services/api';
 import { validatePassword } from '@/utils/passwordValidation';
 import { PasswordStrengthIndicator } from '@/components/PasswordStrengthIndicator';
 
-interface Institution {
-  id: string;
-  name: string;
-}
-
 interface Department {
   _id: string;
   id?: string;
@@ -98,7 +93,6 @@ interface User {
 
 const UserManagement: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
-  const [institutions, setInstitutions] = useState<Institution[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [sections, setSections] = useState<Section[]>([]);
   const [loading, setLoading] = useState(true);
@@ -172,7 +166,7 @@ const UserManagement: React.FC = () => {
       console.log('Fetching users...');
       const response = await authAPI.getUsers();
       console.log('Users response:', response.data);
-      const userData = response.data.data || [];
+      const userData = (response.data.data as any[]) || [];
       
       const formattedUsers: User[] = userData.map(mapUser);
       
@@ -184,23 +178,6 @@ const UserManagement: React.FC = () => {
       setError(err.response?.data?.message || 'Failed to load users. Please ensure you are logged in as an admin.');
     } finally {
       setLoading(false);
-    }
-  }, []);
-
-  // Fetch institutions from API
-  const fetchInstitutions = useCallback(async () => {
-    try {
-      const response = await authAPI.getInstitutions();
-      const instData = response.data.data as any[];
-      
-      const formattedInstitutions: Institution[] = instData.map((inst: any) => ({
-        id: inst._id || inst.id,
-        name: inst.name,
-      }));
-      
-      setInstitutions(formattedInstitutions);
-    } catch (err: any) {
-      console.error('Failed to fetch institutions:', err);
     }
   }, []);
 
@@ -262,9 +239,7 @@ const UserManagement: React.FC = () => {
     }
     setHasFetched(true);
     fetchUsers();
-    fetchInstitutions();
     fetchDepartmentsAndSections();
-    fetchInstitutions();
   }, [hasFetched]);
 
   // Auto-load sections when department changes in the form
@@ -274,7 +249,7 @@ const UserManagement: React.FC = () => {
         try {
           console.log('Loading sections for department:', userForm.departmentId);
           const response = await authAPI.getSections(userForm.departmentId);
-          const sectionsData = normalizeSections(response.data.data || []);
+          const sectionsData = normalizeSections((response.data.data as Section[]) || []);
           console.log('Sections loaded:', sectionsData);
           setSections(sectionsData);
         } catch (error: any) {
@@ -368,7 +343,7 @@ const UserManagement: React.FC = () => {
         institutionId: selectedUser.institutionId || '',
         // Educator fields
         employeeId: selectedUser.employeeId || '',
-        designation: selectedUser.designation || '',
+        designation: (selectedUser.designation || '') as 'professor' | 'associate_professor' | 'assistant_professor' | 'lecturer' | 'hod' | '',
         assignedSections: Array.isArray(selectedUser.assignedSections) 
           ? selectedUser.assignedSections.map((s: any) => {
               const id = typeof s === 'string' ? s : (s?._id || s?.id);

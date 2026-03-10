@@ -29,11 +29,13 @@ import {
   Timer as TimerIcon,
   Assignment as AssignmentIcon,
   PlayArrow as PlayIcon,
+  Visibility as PreviewIcon,
   CheckCircle as CheckIcon,
   Schedule as ScheduleIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useExamStore } from '@/store';
+import { examAPI } from '@/services/api';
 import { Exam, ExamAttempt } from '@/types';
 
 interface TabPanelProps {
@@ -55,9 +57,10 @@ interface ExamCardProps {
   onStart?: () => void;
   onContinue?: () => void;
   onView?: () => void;
+  onPreview?: () => void;
 }
 
-const ExamCard: React.FC<ExamCardProps> = ({ exam, type, attempt, onStart, onContinue, onView }) => {
+const ExamCard: React.FC<ExamCardProps> = ({ exam, type, attempt, onStart, onContinue, onView, onPreview }) => {
   // For completed type, use attempt data if exam is not available
   const title = exam?.title || (attempt as any)?.examTitle || 'Untitled Exam';
   const description = exam?.description || '';
@@ -207,18 +210,21 @@ const ExamCard: React.FC<ExamCardProps> = ({ exam, type, attempt, onStart, onCon
             Continue Exam
           </Button>
         ) : type === 'available' && (
-          <Button
-            fullWidth
-            variant="contained"
-            startIcon={<PlayIcon />}
-            onClick={onStart}
-            disabled={exam?.canAttempt === false}
-            sx={{
-              background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
-            }}
-          >
-            {exam?.canAttempt === false ? 'Max Attempts Reached' : 'Start Exam'}
-          </Button>
+          <Box display="flex" gap={1}>
+            <Button
+              fullWidth
+              variant="contained"
+              startIcon={<PlayIcon />}
+              onClick={onStart}
+              disabled={exam?.canAttempt === false}
+              sx={{
+                background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+              }}
+            >
+              {exam?.canAttempt === false ? 'Max Attempts Reached' : 'Start Exam'}
+            </Button>
+            <Button variant="outlined" onClick={onPreview} startIcon={<PreviewIcon />}>Preview</Button>
+          </Box>
         )}
         {type === 'completed' && (
           <Button fullWidth variant="outlined" onClick={onView}>
@@ -226,9 +232,12 @@ const ExamCard: React.FC<ExamCardProps> = ({ exam, type, attempt, onStart, onCon
           </Button>
         )}
         {type === 'upcoming' && (
-          <Button fullWidth variant="outlined" disabled startIcon={<ScheduleIcon />}>
-            Not Available Yet
-          </Button>
+          <Box display="flex" gap={1}>
+            <Button fullWidth variant="outlined" disabled startIcon={<ScheduleIcon />}>
+              Not Available Yet
+            </Button>
+            <Button variant="outlined" onClick={onPreview} startIcon={<PreviewIcon />}>Preview</Button>
+          </Box>
         )}
       </CardContent>
     </Card>
@@ -251,6 +260,9 @@ const ExamsPage: React.FC = () => {
   const [tabValue, setTabValue] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedExam, setSelectedExam] = useState<Exam | null>(null);
+  const [previewExam, setPreviewExam] = useState<any | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [startingExam, setStartingExam] = useState(false);
   const [hasFetched, setHasFetched] = useState(false);
@@ -271,16 +283,58 @@ const ExamsPage: React.FC = () => {
   const examsArray = Array.isArray(availableExams) ? availableExams : [];
   const attemptsArray = Array.isArray(myAttempts) ? myAttempts : [];
 
-  // Categorize exams
+  // Categorize exams with time-aware status so ended exams are never shown as available.
   const now = new Date();
-  const available = examsArray.filter(e => 
-    (e.status === 'published' || e.status === 'active') && (!e.startTime || new Date(e.startTime) <= now)
-  );
-  const upcoming = examsArray.filter(e => 
-    (e.status === 'published' || e.status === 'active') && e.startTime && new Date(e.startTime) > now
-  );
-  const completedAttempts = attemptsArray.filter(a => 
-    a.status === 'submitted' || a.status === 'graded'
+  const getEffectiveExamBucket = (exam: Exam): ExamType | 'other' => {
+    const startAt = exam.startTime
+      ? new Date(exam.startTime)
+      : (exam.createdAt ? new Date(exam.createdAt) : null);
+    const endAt = (() => {
+      if (startAt && exam.durationMinutes) {
+        const computed = new Date(startAt);
+        computed.setMinutes(computed.getMinutes() + exam.durationMinutes);
+        if (exam.endTime) {
+          const explicitEnd = new Date(exam.endTime);
+          return computed <= explicitEnd ? computed : explicitEnd;
+        }
+        return computed;
+      }
+      if (exam.endTime) return new Date(exam.endTime);
+      return null;
+    })();
+
+    if (endAt && endAt <= now) {
+      return 'completed';
+    }
+
+    if ((exam.status === 'published' || exam.status === 'active') && startAt && startAt > now) {
+      return 'upcoming';
+    }
+
+    if (exam.status === 'published' || exam.status === 'active') {
+      return 'available';
+    }
+
+    return exam.status === 'completed' ? 'completed' : 'other';
+  };
+
+  const available = examsArray.filter((e) => {
+    const bucket = getEffectiveExamBucket(e);
+    if (bucket !== 'available') return false;
+
+    // Hide exhausted exams from available list unless there is an active attempt to continue.
+    const hasActiveAttempt = Boolean((e as any).hasActiveAttempt) || ['started', 'in_progress'].includes(String(e.lastAttemptStatus || ''));
+    if (e.canAttempt === false && !hasActiveAttempt) {
+      return false;
+    }
+
+    return true;
+  });
+
+  const upcoming = examsArray.filter((e) => getEffectiveExamBucket(e) === 'upcoming');
+
+  const completedAttempts = attemptsArray.filter((a) =>
+    ['submitted', 'graded', 'auto_submitted', 'evaluated', 'expired'].includes(a.status)
   );
 
   const filterExams = (exams: Exam[]) => {
@@ -301,6 +355,19 @@ const ExamsPage: React.FC = () => {
   const handleContinueExam = (exam: Exam) => {
     if (exam.activeAttemptId) {
       navigate(`/student/exam/${exam.id}?attemptId=${exam.activeAttemptId}`);
+    }
+  };
+
+  const handlePreviewExam = async (exam: Exam) => {
+    try {
+      setPreviewLoading(true);
+      const response = await examAPI.getExamPreview(exam.id);
+      setPreviewExam(response.data.data);
+      setPreviewOpen(true);
+    } catch (error) {
+      console.error('Failed to load exam preview:', error);
+    } finally {
+      setPreviewLoading(false);
     }
   };
 
@@ -407,6 +474,7 @@ const ExamsPage: React.FC = () => {
                 type="available"
                 onStart={() => handleStartExam(exam)}
                 onContinue={() => handleContinueExam(exam)}
+                onPreview={() => handlePreviewExam(exam)}
               />
             </Grid>
           ))}
@@ -431,7 +499,7 @@ const ExamsPage: React.FC = () => {
         <Grid container spacing={3}>
           {filterExams(upcoming).map((exam) => (
             <Grid item xs={12} sm={6} md={4} key={exam.id}>
-              <ExamCard exam={exam} type="upcoming" />
+              <ExamCard exam={exam} type="upcoming" onPreview={() => handlePreviewExam(exam)} />
             </Grid>
           ))}
           {filterExams(upcoming).length === 0 && (
@@ -511,6 +579,35 @@ const ExamsPage: React.FC = () => {
           >
             {startingExam ? 'Starting...' : 'Start Exam'}
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Exam Preview Dialog */}
+      <Dialog open={previewOpen} onClose={() => setPreviewOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Exam Preview</DialogTitle>
+        <DialogContent>
+          {previewLoading ? (
+            <Skeleton variant="rounded" height={220} />
+          ) : previewExam ? (
+            <Box>
+              <Typography variant="h6" fontWeight={700} gutterBottom>{previewExam.title}</Typography>
+              <Typography variant="body2" color="text.secondary" mb={2}>{previewExam.description || 'No description available'}</Typography>
+              <Typography variant="body2" mb={0.5}><strong>Duration:</strong> {previewExam.durationMinutes} min</Typography>
+              <Typography variant="body2" mb={0.5}><strong>Questions:</strong> {previewExam.questionCount}</Typography>
+              <Typography variant="body2" mb={0.5}><strong>Total Marks:</strong> {previewExam.totalMarks}</Typography>
+              <Typography variant="body2" mb={0.5}><strong>Passing:</strong> {previewExam.passingPercentage}%</Typography>
+              <Typography variant="body2" mb={0.5}><strong>Type:</strong> {previewExam.examType}</Typography>
+              <Typography variant="body2" mb={0.5}><strong>Attempts Allowed:</strong> {previewExam.maxAttempts}</Typography>
+              {previewExam.instructions && (
+                <Alert severity="info" sx={{ mt: 2 }}>{previewExam.instructions}</Alert>
+              )}
+            </Box>
+          ) : (
+            <Alert severity="warning">Preview not available</Alert>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPreviewOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
     </Box>

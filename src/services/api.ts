@@ -90,13 +90,20 @@ const responseInterceptor = (error: AxiosError<APIResponse>) => {
           }
           throw error;
         })
-        .catch(() => {
-          clearTokens();
-          if (!isRedirecting && !window.location.pathname.includes('/login')) {
-            isRedirecting = true;
-            window.location.href = '/login';
+        .catch((refreshError: AxiosError<APIResponse>) => {
+          const refreshStatus = refreshError.response?.status;
+
+          // Only clear session on explicit auth invalidation.
+          // For transient failures (503/network), keep tokens so user can retry.
+          if (refreshStatus && [400, 401, 403].includes(refreshStatus)) {
+            clearTokens();
+            if (!isRedirecting && !window.location.pathname.includes('/login')) {
+              isRedirecting = true;
+              window.location.href = '/login';
+            }
           }
-          return Promise.reject(error);
+
+          return Promise.reject(refreshError);
         });
     } else {
       clearTokens();
@@ -144,8 +151,8 @@ export const authAPI = {
     firstName: string;
     lastName: string;
     role: string;
-    institutionId: number;
-    departmentId?: number;
+    institutionId?: number | string;
+    departmentId?: number | string;
   }) => api.post<APIResponse>('/auth/register', data),
 
   logout: () => api.post<APIResponse>('/auth/logout'),
@@ -158,6 +165,9 @@ export const authAPI = {
     phoneNumber?: string;
     dateOfBirth?: string;
     gender?: string;
+    // Student ID fields
+    studentId?: string;
+    rollNumber?: string;
     // New academic fields
     departmentCode?: string;
     yearOfStudy?: string;
@@ -298,6 +308,8 @@ export const examAPI = {
 
   deleteExam: (id: number | string) => api.delete<APIResponse>(`/exams/${id}`),
 
+  getExamPreview: (id: number | string) => api.get<APIResponse>(`/exams/${id}/preview`),
+
   // Exam lifecycle
   publishExam: (id: number | string) => api.post<APIResponse>(`/exams/${id}/publish`),
   activateExam: (id: number | string) => api.post<APIResponse>(`/exams/${id}/activate`),
@@ -350,6 +362,9 @@ export const examAPI = {
 
   markForReview: (attemptId: number | string, questionId: number | string, isMarked: boolean) =>
     api.put<APIResponse>(`/exams/attempts/${attemptId}/mark-review`, { questionId, isMarked }),
+
+  skipQuestion: (attemptId: number | string, questionId: number | string) =>
+    api.put<APIResponse>(`/exams/attempts/${attemptId}/skip`, { questionId }),
 
   submitExam: (attemptId: number | string) => api.post<APIResponse>(`/exams/attempts/${attemptId}/submit`),
 
@@ -429,6 +444,9 @@ export const analyticsAPI = {
   getMyLearningGaps: () =>
     api.get<APIResponse>('/analytics/my-learning-gaps'),
 
+  getMyFeedback: () =>
+    api.get<APIResponse>('/analytics/my-feedback'),
+
   // Student analytics (with IDs)
   getStudentDashboard: (studentId: number, courseId?: number) =>
     api.get<APIResponse>('/analytics/dashboard', { params: { studentId, courseId } }),
@@ -442,7 +460,7 @@ export const analyticsAPI = {
   getDifficultyAnalysis: (studentId: number, courseId: number, examId?: number) =>
     analyticsApi.post<APIResponse>('/analytics/difficulty', { studentId, courseId, examId }),
 
-  getLearningGaps: (studentId: number, courseId: number) =>
+  getLearningGaps: (studentId: number | string, courseId: number | string) =>
     analyticsApi.post<APIResponse>('/analytics/gaps', { studentId, courseId }),
 
   getTrend: (studentId: number, courseId: number, windowSize?: number) =>
@@ -505,8 +523,8 @@ export const analyticsAPI = {
 
 export const goalAPI = {
   createGoal: (data: {
-    studentId: number;
-    courseId: number;
+    studentId: number | string;
+    courseId: number | string;
     goalType: string;
     targetMetric: string;
     targetValue: number;
@@ -515,16 +533,16 @@ export const goalAPI = {
     description?: string;
   }) => api.post<APIResponse>('/goals/create', data),
 
-  getStudentGoals: (studentId: number, params?: { courseId?: number; status?: string }) =>
+  getStudentGoals: (studentId: number | string, params?: { courseId?: number | string; status?: string }) =>
     api.get<APIResponse>(`/goals/student/${studentId}`, { params }),
 
-  updateProgress: (goalId: number, data: { currentValue: number; notes?: string }) =>
+  updateProgress: (goalId: number | string, data: { currentValue: number; notes?: string }) =>
     api.post<APIResponse>(`/goals/${goalId}/update-progress`, data),
 
-  getGoalDetails: (goalId: number, includeHistory: boolean = true) =>
+  getGoalDetails: (goalId: number | string, includeHistory: boolean = true) =>
     api.get<APIResponse>(`/goals/${goalId}`, { params: { includeHistory } }),
 
-  getCourseGoalsSummary: (courseId: number) =>
+  getCourseGoalsSummary: (courseId: number | string) =>
     api.get<APIResponse>(`/goals/course/${courseId}/summary`),
 };
 
@@ -534,8 +552,8 @@ export const goalAPI = {
 
 export const notificationAPI = {
   sendNotification: (data: {
-    studentId: number;
-    courseId?: number;
+    studentId: number | string;
+    courseId?: number | string;
     notificationType: string;
     title: string;
     message: string;
@@ -544,19 +562,19 @@ export const notificationAPI = {
     metadata?: any;
   }) => api.post<APIResponse>('/notifications/send', data),
 
-  getUserNotifications: (userId: number, params?: {
+  getUserNotifications: (userId: number | string, params?: {
     unreadOnly?: boolean;
     notificationType?: string;
     limit?: number;
   }) => api.get<APIResponse>(`/notifications/user/${userId}`, { params }),
 
-  markAsRead: (notificationId: number) =>
+  markAsRead: (notificationId: number | string) =>
     api.post<APIResponse>(`/notifications/${notificationId}/mark-read`),
 
-  setPreferences: (studentId: number, preferences: any) =>
+  setPreferences: (studentId: number | string, preferences: any) =>
     api.post<APIResponse>('/notifications/preferences', { studentId, preferences }),
 
-  getPreferences: (studentId: number) =>
+  getPreferences: (studentId: number | string) =>
     api.get<APIResponse>(`/notifications/preferences/${studentId}`),
 };
 
@@ -566,9 +584,9 @@ export const notificationAPI = {
 
 export const interventionAPI = {
   createIntervention: (data: {
-    studentId: number;
-    educatorId: number;
-    courseId: number;
+    studentId: number | string;
+    educatorId: number | string;
+    courseId: number | string;
     interventionType: string;
     reason: string;
     plannedActions: string;
@@ -576,38 +594,51 @@ export const interventionAPI = {
     estimatedDuration?: number;
   }) => api.post<APIResponse>('/interventions/create', data),
 
-  startIntervention: (interventionId: number, data?: { actualStartDate?: string; notes?: string }) =>
+  startIntervention: (interventionId: number | string, data?: { actualStartDate?: string; notes?: string }) =>
     api.post<APIResponse>(`/interventions/${interventionId}/start`, data),
 
-  addCheckin: (interventionId: number, data: {
+  addCheckin: (interventionId: number | string, data: {
     progress?: string;
     observations: string;
     nextSteps?: string;
     metricsUpdate?: any;
   }) => api.post<APIResponse>(`/interventions/${interventionId}/checkin`, data),
 
-  recordOutcome: (interventionId: number, data: {
+  recordOutcome: (interventionId: number | string, data: {
     outcome: string;
     finalMetrics?: any;
     notes?: string;
     recommendFollowup?: boolean;
   }) => api.post<APIResponse>(`/interventions/${interventionId}/outcome`, data),
 
-  completeIntervention: (interventionId: number, data?: { completionDate?: string; finalNotes?: string }) =>
+  completeIntervention: (interventionId: number | string, data?: { completionDate?: string; finalNotes?: string }) =>
     api.post<APIResponse>(`/interventions/${interventionId}/complete`, data),
 
-  getInterventionDetails: (interventionId: number, includeCheckins: boolean = true) =>
+  getInterventionDetails: (interventionId: number | string, includeCheckins: boolean = true) =>
     api.get<APIResponse>(`/interventions/${interventionId}`, { params: { includeCheckins } }),
 
-  getStudentInterventions: (studentId: number, params?: {
-    courseId?: number;
+  getStudentInterventions: (studentId: number | string, params?: {
+    courseId?: number | string;
     status?: string;
     interventionType?: string;
   }) => api.get<APIResponse>(`/interventions/student/${studentId}`, { params }),
 
+  getEducatorInterventions: (params?: {
+    status?: string;
+    interventionType?: string;
+    page?: number;
+    limit?: number;
+  }) => api.get<APIResponse>('/interventions/educator', { params }),
+
+  getMyInterventions: (params?: {
+    status?: string;
+    page?: number;
+    limit?: number;
+  }) => api.get<APIResponse>('/interventions/my-interventions', { params }),
+
   getEffectiveness: (params?: {
     courseId?: number;
-    educatorId?: number;
+    educatorId?: number | string;
     interventionType?: string;
   }) => api.get<APIResponse>('/interventions/effectiveness', { params }),
 };
