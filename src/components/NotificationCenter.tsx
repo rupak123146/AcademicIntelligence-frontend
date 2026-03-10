@@ -6,8 +6,6 @@
 import React, { useState, useEffect } from 'react';
 import {
   Box,
-  Card,
-  CardContent,
   Typography,
   Badge,
   IconButton,
@@ -19,7 +17,6 @@ import {
   Button,
   Drawer,
   Divider,
-  Alert,
   Switch,
   FormControlLabel,
   Dialog,
@@ -44,9 +41,10 @@ import {
 } from '@mui/icons-material';
 import { notificationAPI } from '@/services/api';
 import { useAuthStore } from '@/store/authStore';
+import { connectRealtime, getRealtimeSocket } from '@/services/realtime';
 
 interface Notification {
-  id: number;
+  id: string | number;
   notificationType: string;
   title: string;
   message: string;
@@ -84,12 +82,23 @@ const NotificationCenter: React.FC = () => {
   });
 
   useEffect(() => {
-    loadNotifications();
-    loadPreferences();
+    if (user?.id) {
+      loadNotifications();
+      loadPreferences();
+
+      const socket = connectRealtime(String(user.id), user.institutionId ? String(user.institutionId) : undefined);
+      socket.on('notification:new', (incoming: Notification) => {
+        setNotifications((prev) => [incoming, ...prev]);
+      });
+    }
     
     // Poll for new notifications every 30 seconds
     const interval = setInterval(loadNotifications, 30000);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      const socket = getRealtimeSocket();
+      socket?.off('notification:new');
+    };
   }, []);
 
   useEffect(() => {
@@ -98,12 +107,17 @@ const NotificationCenter: React.FC = () => {
   }, [notifications]);
 
   const loadNotifications = async () => {
+    if (!user?.id) {
+      return;
+    }
+
     try {
       setLoading(true);
       const response = await notificationAPI.getUserNotifications(user.id, {
         limit: 50,
       });
-      setNotifications(response.data.data || []);
+      const responseData = response.data.data as Notification[];
+      setNotifications(Array.isArray(responseData) ? responseData : []);
     } catch (err) {
       console.error('Failed to load notifications:', err);
     } finally {
@@ -112,17 +126,22 @@ const NotificationCenter: React.FC = () => {
   };
 
   const loadPreferences = async () => {
+    if (!user?.id) {
+      return;
+    }
+
     try {
       const response = await notificationAPI.getPreferences(user.id);
-      if (response.data.data) {
-        setPreferences(response.data.data);
+      const responseData = response.data.data as NotificationPreferences;
+      if (responseData) {
+        setPreferences(responseData);
       }
     } catch (err) {
       console.error('Failed to load preferences:', err);
     }
   };
 
-  const handleMarkAsRead = async (notificationId: number) => {
+  const handleMarkAsRead = async (notificationId: string | number) => {
     try {
       await notificationAPI.markAsRead(notificationId);
       setNotifications((prev) =>
@@ -144,6 +163,10 @@ const NotificationCenter: React.FC = () => {
   };
 
   const handleSavePreferences = async () => {
+    if (!user?.id) {
+      return;
+    }
+
     try {
       await notificationAPI.setPreferences(user.id, preferences);
       setSettingsOpen(false);
@@ -157,13 +180,28 @@ const NotificationCenter: React.FC = () => {
       case 'feedback_available':
         return <FeedbackIcon color="primary" />;
       case 'assignment_due':
+      case 'task_submitted':
         return <AssignmentIcon color="warning" />;
       case 'grade_posted':
+      case 'result_published':
+      case 'exam_submitted':
         return <CheckCircleIcon color="success" />;
       case 'achievement':
+      case 'achievement_unlocked':
         return <TrendingUpIcon color="success" />;
       case 'deadline_reminder':
+      case 'deadline_approaching':
         return <WarningIcon color="warning" />;
+      case 'exam_reminder':
+        return <AssignmentIcon color="info" />;
+      case 'goal_milestone':
+      case 'exam_completion_milestone':
+        return <TrendingUpIcon color="primary" />;
+      case 'intervention_alert':
+      case 'low_performance_alert':
+        return <WarningIcon color="error" />;
+      case 'new_enrollment':
+        return <InfoIcon color="success" />;
       default:
         return <InfoIcon color="info" />;
     }

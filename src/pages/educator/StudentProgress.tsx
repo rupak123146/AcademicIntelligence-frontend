@@ -283,7 +283,7 @@ const StudentProgress: React.FC = () => {
           <TableHead>
             <TableRow>
               <TableCell>Student</TableCell>
-              <TableCell align="center">Roll No.</TableCell>
+              <TableCell align="center">USN / Roll No.</TableCell>
               <TableCell align="center">Phone</TableCell>
               <TableCell align="center">Average Score</TableCell>
               <TableCell align="center">Exams Taken</TableCell>
@@ -311,7 +311,7 @@ const StudentProgress: React.FC = () => {
                     </Box>
                   </TableCell>
                   <TableCell align="center">
-                    <Typography variant="body2">{student.rollNumber || 'N/A'}</Typography>
+                    <Typography variant="body2">{student.studentId || student.rollNumber || 'N/A'}</Typography>
                   </TableCell>
                   <TableCell align="center">
                     <Typography variant="body2">{student.phoneNumber || 'N/A'}</Typography>
@@ -372,9 +372,9 @@ const StudentProgress: React.FC = () => {
               <Typography variant="body2" color="text.secondary">
                 {selectedStudent?.email}
               </Typography>
-              {selectedStudent?.rollNumber && (
+              {(selectedStudent?.studentId || selectedStudent?.rollNumber) && (
                 <Typography variant="body2" color="text.secondary">
-                  Roll No: {selectedStudent.rollNumber}
+                  USN / Roll No: {selectedStudent.studentId || selectedStudent.rollNumber}
                 </Typography>
               )}
               {selectedStudent?.phoneNumber && (

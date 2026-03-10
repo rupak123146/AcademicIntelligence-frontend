@@ -20,7 +20,6 @@ import {
   Menu,
   MenuItem,
   Divider,
-  Badge,
   Tooltip,
   useMediaQuery,
   useTheme,
@@ -36,10 +35,10 @@ import {
   Settings as SettingsIcon,
   Person as PersonIcon,
   Logout as LogoutIcon,
-  Notifications as NotificationsIcon,
   ChevronLeft as ChevronLeftIcon,
   TrendingUp as TrendingUpIcon,
   Assessment as AssessmentIcon,
+  SupportAgent as SupportAgentIcon,
 } from '@mui/icons-material';
 import { useAuthStore } from '@/store';
 import NotificationCenter from '@/components/NotificationCenter';
@@ -86,6 +85,7 @@ const MainLayout: React.FC = () => {
         return [
           { label: 'Dashboard', path: '/student', icon: <DashboardIcon /> },
           { label: 'My Exams', path: '/student/exams', icon: <AssignmentIcon /> },
+          { label: 'My Interventions', path: '/student/interventions', icon: <SupportAgentIcon /> },
           { label: 'Analytics', path: '/student/analytics', icon: <AnalyticsIcon /> },
           { label: 'Profile', path: '/student/profile', icon: <PersonIcon /> },
         ];
@@ -96,6 +96,7 @@ const MainLayout: React.FC = () => {
           { label: 'Question Bank', path: '/educator/questions', icon: <QuestionIcon /> },
           { label: 'Class Analytics', path: '/educator/analytics', icon: <AnalyticsIcon /> },
           { label: 'Student Progress', path: '/educator/students', icon: <TrendingUpIcon /> },
+          { label: 'Interventions', path: '/educator/interventions', icon: <SupportAgentIcon /> },
           { label: 'Profile', path: '/educator/profile', icon: <PersonIcon /> },
         ];
       case 'admin':

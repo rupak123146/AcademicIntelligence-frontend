@@ -99,7 +99,7 @@ interface ProfileData {
 }
 
 const ProfilePage: React.FC = () => {
-  const { user, updateProfile, changePassword } = useAuthStore();
+  const { updateProfile, changePassword } = useAuthStore();
   const [tabValue, setTabValue] = useState(0);
   const [isEditing, setIsEditing] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -420,7 +420,7 @@ const ProfilePage: React.FC = () => {
                   <BadgeIcon color="action" fontSize="small" />
                 </ListItemIcon>
                 <ListItemText 
-                  primary={profileData.studentId || 'N/A'} 
+                  primary={profileData.studentId || profileData.rollNumber || 'N/A'} 
                   secondary="USN / Student ID"
                   primaryTypographyProps={{ variant: 'body2', fontWeight: 500 }}
                 />

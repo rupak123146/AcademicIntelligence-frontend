@@ -24,6 +24,7 @@ import {
   Tooltip,
   Skeleton,
   Alert,
+  Snackbar,
 } from '@mui/material';
 import {
   Timer as TimerIcon,
@@ -34,12 +35,14 @@ import {
 } from '@mui/icons-material';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useExamStore } from '@/store';
+import ErrorRecoveryModal from '@/components/ErrorRecoveryModal';
 
 interface Answer {
   questionId: string | number;
   selectedOptionId?: string;
   textAnswer?: string;
   isMarkedForReview: boolean;
+  isSkipped?: boolean;
 }
 
 const TakeExamPage: React.FC = () => {
@@ -59,6 +62,7 @@ const TakeExamPage: React.FC = () => {
     startExam,
     loadAttempt,
     saveAnswer,
+    skipQuestion,
     submitExam,
     clearError,
   } = useExamStore();
@@ -69,6 +73,33 @@ const TakeExamPage: React.FC = () => {
   const [submitDialogOpen, setSubmitDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasFetchedExam, setHasFetchedExam] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [errorModalOpen, setErrorModalOpen] = useState(false);
+  const [errorDetails, setErrorDetails] = useState<{
+    code?: number;
+    message: string;
+    title: string;
+  }>({
+    message: '',
+    title: 'Exam Error',
+  });
+
+  const getErrorTitle = (code?: number) => {
+    switch (code) {
+      case 401:
+        return 'Session Expired';
+      case 403:
+        return 'Access Denied';
+      case 404:
+        return 'Not Found';
+      case 409:
+        return 'Conflict';
+      case 429:
+        return 'Too Many Requests';
+      default:
+        return 'Exam Error';
+    }
+  };
 
   // Fetch exam data or resume attempt
   useEffect(() => {
@@ -99,7 +130,15 @@ const TakeExamPage: React.FC = () => {
         }
       };
 
-      loadExam();
+      loadExam().catch((error: any) => {
+        const code = error?.response?.status;
+        setErrorDetails({
+          code,
+          message: error?.response?.data?.message || error.message || 'Failed to load exam',
+          title: getErrorTitle(code),
+        });
+        setErrorModalOpen(true);
+      });
     }
   }, [examId, attemptId, hasFetchedExam, resumeExam, startExam, fetchExamById, loadAttempt]);
 
@@ -146,16 +185,40 @@ const TakeExamPage: React.FC = () => {
   const questions = currentQuestions || currentExam?.questions || [];
   const currentQuestion = questions[currentIndex];
 
+  // Restore saved answers when questions load (on resume/reload)
+  useEffect(() => {
+    if (questions.length > 0 && answers.size === 0) {
+      const restoredAnswers = new Map<string | number, Answer>();
+      for (const q of questions) {
+        const saved = (q as any).savedAnswer;
+        if (saved && saved.isAnswered && saved.selectedAnswer != null) {
+          const isText = q.questionType === 'short_answer' || q.questionType === 'essay';
+          restoredAnswers.set(q.id, {
+            questionId: q.id,
+            selectedOptionId: isText ? undefined : String(saved.selectedAnswer),
+            textAnswer: isText ? String(saved.selectedAnswer) : undefined,
+            isMarkedForReview: saved.isMarkedForReview || false,
+          });
+        }
+      }
+      if (restoredAnswers.size > 0) {
+        setAnswers(restoredAnswers);
+      }
+    }
+  }, [questions]);
+
   const handleAnswerChange = useCallback(async (questionId: string | number, value: string) => {
+    const isTextType = currentQuestion?.questionType === 'short_answer' || currentQuestion?.questionType === 'essay' || currentQuestion?.questionType === 'numerical';
+
     setAnswers((prev) => {
       const newAnswers = new Map(prev);
       const existing = newAnswers.get(questionId) || { questionId, isMarkedForReview: false };
       
       // Determine if it's an option selection or text answer
-      if (currentQuestion?.questionType === 'short_answer' || currentQuestion?.questionType === 'essay') {
-        newAnswers.set(questionId, { ...existing, textAnswer: value });
+      if (isTextType) {
+        newAnswers.set(questionId, { ...existing, textAnswer: value, isSkipped: false });
       } else {
-        newAnswers.set(questionId, { ...existing, selectedOptionId: value });
+        newAnswers.set(questionId, { ...existing, selectedOptionId: value, isSkipped: false });
       }
       
       return newAnswers;
@@ -163,10 +226,39 @@ const TakeExamPage: React.FC = () => {
 
     // Save answer to backend
     if (currentAttempt?.id) {
-      const isTextAnswer = currentQuestion?.questionType === 'short_answer' || currentQuestion?.questionType === 'essay';
-      await saveAnswer(String(currentAttempt.id), String(questionId), isTextAnswer ? undefined : value, isTextAnswer ? value : undefined);
+      try {
+        await saveAnswer(String(currentAttempt.id), String(questionId), isTextType ? undefined : value, isTextType ? value : undefined);
+        setSaveError(null);
+      } catch {
+        setSaveError('Failed to save answer. Please try selecting your answer again.');
+      }
     }
   }, [currentQuestion, currentAttempt, saveAnswer]);
+
+  const handleSkipQuestion = useCallback(async () => {
+    if (!currentQuestion) return;
+
+    const qId = currentQuestion.id;
+    setAnswers((prev) => {
+      const newAnswers = new Map(prev);
+      const existing = newAnswers.get(qId) || { questionId: qId, isMarkedForReview: false };
+      newAnswers.set(qId, {
+        ...existing,
+        selectedOptionId: undefined,
+        textAnswer: undefined,
+        isSkipped: true,
+      });
+      return newAnswers;
+    });
+
+    if (currentAttempt?.id) {
+      await skipQuestion(String(currentAttempt.id), String(qId));
+    }
+
+    if (currentIndex < questions.length - 1) {
+      setCurrentIndex((i) => i + 1);
+    }
+  }, [currentAttempt, currentIndex, currentQuestion, questions.length, skipQuestion]);
 
   const toggleMarkForReview = () => {
     if (!currentQuestion) return;
@@ -196,6 +288,7 @@ const TakeExamPage: React.FC = () => {
   const getQuestionStatus = (qId: string | number) => {
     const answer = answers.get(qId);
     if (!answer) return 'unanswered';
+    if (answer.isSkipped) return 'skipped';
     if (answer.isMarkedForReview) return 'flagged';
     if (answer.selectedOptionId || answer.textAnswer) return 'answered';
     return 'unanswered';
@@ -277,6 +370,18 @@ const TakeExamPage: React.FC = () => {
           />
         );
 
+      case 'numerical':
+        return (
+          <TextField
+            fullWidth
+            type="number"
+            placeholder="Enter your numerical answer..."
+            value={answer?.textAnswer || ''}
+            onChange={(e) => handleAnswerChange(String(qId), e.target.value)}
+            inputProps={{ step: 'any' }}
+          />
+        );
+
       default:
         return null;
     }
@@ -304,16 +409,31 @@ const TakeExamPage: React.FC = () => {
   // Error state
   if (examsError) {
     return (
-      <Box sx={{ minHeight: '100vh', bgcolor: 'grey.50', py: 3, mt: 8 }}>
-        <Box sx={{ px: 3 }}>
-          <Alert severity="error" onClose={clearError}>
-            {examsError}
-          </Alert>
-          <Button onClick={() => navigate('/student/exams')} sx={{ mt: 2 }}>
-            Back to Exams
-          </Button>
+      <>
+        <Box sx={{ minHeight: '100vh', bgcolor: 'grey.50', py: 3, mt: 8 }}>
+          <Box sx={{ px: 3 }}>
+            <Alert severity="error" onClose={clearError}>
+              {examsError}
+            </Alert>
+            <Button onClick={() => navigate('/student/exams')} sx={{ mt: 2 }}>
+              Back to Exams
+            </Button>
+          </Box>
         </Box>
-      </Box>
+        <ErrorRecoveryModal
+          open={errorModalOpen}
+          errorCode={errorDetails.code}
+          errorMessage={errorDetails.message || examsError}
+          title={errorDetails.title}
+          onRetry={() => {
+            setErrorModalOpen(false);
+            setHasFetchedExam(false);
+            clearError();
+          }}
+          onGoHome={() => navigate('/student/exams')}
+          onClose={() => setErrorModalOpen(false)}
+        />
+      </>
     );
   }
 
@@ -431,6 +551,9 @@ const TakeExamPage: React.FC = () => {
                 >
                   Previous
                 </Button>
+                <Button color="warning" onClick={handleSkipQuestion}>
+                  Skip
+                </Button>
                 <Button
                   endIcon={<NextIcon />}
                   disabled={currentIndex === questions.length - 1}
@@ -464,6 +587,8 @@ const TakeExamPage: React.FC = () => {
                               ? 'success.light'
                               : status === 'flagged'
                               ? 'warning.light'
+                              : status === 'skipped'
+                              ? 'info.light'
                               : undefined,
                         }}
                       >
@@ -488,6 +613,10 @@ const TakeExamPage: React.FC = () => {
                   <Box display="flex" alignItems="center" gap={0.5}>
                     <Box sx={{ width: 16, height: 16, bgcolor: 'warning.light', borderRadius: 1 }} />
                     <Typography variant="caption">Flagged</Typography>
+                  </Box>
+                  <Box display="flex" alignItems="center" gap={0.5}>
+                    <Box sx={{ width: 16, height: 16, bgcolor: 'info.light', borderRadius: 1 }} />
+                    <Typography variant="caption">Skipped</Typography>
                   </Box>
                   <Box display="flex" alignItems="center" gap={0.5}>
                     <Box sx={{ width: 16, height: 16, border: '1px solid', borderColor: 'divider', borderRadius: 1 }} />
@@ -532,6 +661,18 @@ const TakeExamPage: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Save error notification */}
+      <Snackbar
+        open={!!saveError}
+        autoHideDuration={5000}
+        onClose={() => setSaveError(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity="error" onClose={() => setSaveError(null)} variant="filled">
+          {saveError}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

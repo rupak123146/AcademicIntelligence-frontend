@@ -9,6 +9,7 @@ import { useAuthStore } from '@/store';
 import ProtectedRoute from '@/components/layout/ProtectedRoute';
 import MainLayout from '@/components/layout/MainLayout';
 import AuthLayout from '@/components/layout/AuthLayout';
+import ErrorBoundary from '@/components/ErrorBoundary';
 
 // Lazy loaded pages
 const LandingPage = lazy(() => import('@/pages/LandingPage'));
@@ -23,6 +24,7 @@ const ExamResults = lazy(() => import('@/pages/student/ExamResults'));
 const StudentAnalytics = lazy(() => import('@/pages/student/Analytics'));
 const StudentProfile = lazy(() => import('@/pages/student/Profile'));
 const StudentProfileCompletion = lazy(() => import('@/pages/student/ProfileCompletion'));
+const StudentInterventions = lazy(() => import('@/pages/student/Interventions'));
 
 const EducatorDashboard = lazy(() => import('@/pages/educator/Dashboard'));
 const ExamManagement = lazy(() => import('@/pages/educator/ExamManagement'));
@@ -33,6 +35,7 @@ const ClassAnalytics = lazy(() => import('@/pages/educator/ClassAnalytics'));
 const StudentProgress = lazy(() => import('@/pages/educator/StudentProgress'));
 const EducatorStudentManagement = lazy(() => import('@/pages/educator/StudentManagement'));
 const EducatorProfile = lazy(() => import('@/pages/educator/Profile'));
+const EducatorInterventions = lazy(() => import('@/pages/educator/Interventions'));
 
 const AdminDashboard = lazy(() => import('@/pages/admin/Dashboard'));
 const UserManagement = lazy(() => import('@/pages/admin/UserManagement'));
@@ -67,8 +70,9 @@ const App: React.FC = () => {
   }, []);
 
   return (
-    <Suspense fallback={<PageLoader />}>
-      <Routes>
+    <ErrorBoundary>
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
         {/* Landing Page */}
         <Route path="/" element={<LandingPage />} />
 
@@ -95,6 +99,7 @@ const App: React.FC = () => {
           <Route path="/student/exam/:examId" element={<TakeExam />} />
           <Route path="/student/results/:attemptId" element={<ExamResults />} />
           <Route path="/student/analytics" element={<StudentAnalytics />} />
+          <Route path="/student/interventions" element={<StudentInterventions />} />
         </Route>
 
         {/* Protected Educator Routes */}
@@ -115,6 +120,7 @@ const App: React.FC = () => {
           <Route path="/educator/questions" element={<QuestionBank />} />
           <Route path="/educator/curriculum" element={<ChapterConceptManagement />} />
           <Route path="/educator/analytics" element={<ClassAnalytics />} />
+          <Route path="/educator/interventions" element={<EducatorInterventions />} />
           <Route path="/educator/progress" element={<StudentProgress />} />
         </Route>
 
@@ -135,8 +141,9 @@ const App: React.FC = () => {
 
         {/* 404 Redirect */}
         <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </Suspense>
+        </Routes>
+      </Suspense>
+    </ErrorBoundary>
   );
 };
 

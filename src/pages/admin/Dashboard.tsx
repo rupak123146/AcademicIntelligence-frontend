@@ -32,11 +32,8 @@ import {
   Assignment as AssignmentIcon,
   TrendingUp as TrendingUpIcon,
   Storage as StorageIcon,
-  Security as SecurityIcon,
   Add as AddIcon,
   ArrowForward as ArrowForwardIcon,
-  CheckCircle as CheckIcon,
-  Warning as WarningIcon,
   Refresh as RefreshIcon,
   GetApp as DownloadIcon,
 } from '@mui/icons-material';
@@ -56,7 +53,6 @@ import {
   Bar,
 } from 'recharts';
 import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
 import 'jspdf-autotable';
 import { analyticsAPI, examAPI } from '@/services/api';
 
@@ -210,7 +206,7 @@ const Dashboard: React.FC = () => {
 
       // Title
       doc.setFontSize(20);
-      doc.setFont(undefined, 'bold');
+      doc.setFont('helvetica', 'bold');
       doc.text('Academic Intelligence Platform', pageWidth / 2, yPosition, { align: 'center' });
       
       yPosition += 10;
@@ -219,7 +215,7 @@ const Dashboard: React.FC = () => {
       
       yPosition += 10;
       doc.setFontSize(10);
-      doc.setFont(undefined, 'normal');
+      doc.setFont('helvetica', 'normal');
       doc.setTextColor(100);
       doc.text(`Generated on: ${now}`, pageWidth / 2, yPosition, { align: 'center' });
 
@@ -230,12 +226,12 @@ const Dashboard: React.FC = () => {
       // Executive Summary
       doc.setTextColor(0);
       doc.setFontSize(12);
-      doc.setFont(undefined, 'bold');
+      doc.setFont('helvetica', 'bold');
       doc.text('Executive Summary', 20, yPosition);
       
       yPosition += 12;
       doc.setFontSize(10);
-      doc.setFont(undefined, 'normal');
+      doc.setFont('helvetica', 'normal');
 
       const summaryItems = [
         { label: 'Total Users', value: (stats.totalUsers || stats.totalStudents + stats.totalEducators + stats.totalAdmins).toLocaleString() },
@@ -257,15 +253,15 @@ const Dashboard: React.FC = () => {
       if (stats.departmentStats.length > 0) {
         yPosition += 10;
         doc.setFontSize(12);
-        doc.setFont(undefined, 'bold');
+        doc.setFont('helvetica', 'bold');
         doc.text('Department Overview', 20, yPosition);
         
         yPosition += 12;
         doc.setFontSize(10);
-        doc.setFont(undefined, 'normal');
+        doc.setFont('helvetica', 'normal');
 
         // Header row
-        doc.setFont(undefined, 'bold');
+        doc.setFont('helvetica', 'bold');
         doc.text('Department', 30, yPosition);
         doc.text('Students', 100, yPosition);
         doc.text('Educators', 130, yPosition);
@@ -273,7 +269,7 @@ const Dashboard: React.FC = () => {
         yPosition += 8;
 
         // Data rows
-        doc.setFont(undefined, 'normal');
+        doc.setFont('helvetica', 'normal');
         stats.departmentStats.forEach((dept) => {
           if (yPosition > 270) {
             doc.addPage();
@@ -322,7 +318,7 @@ const Dashboard: React.FC = () => {
   ];
 
   return (
-    <Box>
+    <Box ref={reportRef}>
       {/* Error Alert */}
       {error && (
         <Alert 

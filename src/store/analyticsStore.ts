@@ -56,6 +56,7 @@ interface AnalyticsState {
   fetchDifficultyAnalysis: () => Promise<void>;
   fetchPerformanceTrend: () => Promise<void>;
   fetchLearningGaps: () => Promise<void>;
+  fetchMyFeedback: () => Promise<void>;
 
   // Actions - Student analytics (with IDs)
   fetchDashboard: (studentId: number, courseId?: number) => Promise<void>;
@@ -150,12 +151,25 @@ const mapDifficultyAnalysis = (raw: any): DifficultyPerformance[] => {
     const total = toNumber(item.total ?? item.totalQuestions, 0);
     const correct = toNumber(item.correct ?? item.correctAnswers, 0);
     const accuracy = toNumber(item.accuracy, total > 0 ? (correct / total) * 100 : 0);
+    const averageTime = toNumber(item.averageTime ?? item.averageTimeSeconds, 0);
+    const benchmark = toNumber(item.benchmark, 60);
+    const deviation = accuracy - benchmark;
+    const performanceTag =
+      accuracy >= 85 ? 'excellent' :
+      accuracy >= 70 ? 'above_average' :
+      accuracy >= 55 ? 'average' :
+      accuracy >= 40 ? 'below_average' :
+      'needs_improvement';
+
     return {
       difficulty: (item.difficulty ?? 'medium') as any,
       totalQuestions: total,
       correctAnswers: correct,
       accuracy,
-      averageTime: toNumber(item.averageTime ?? item.averageTimeSeconds, 0),
+      avgTime: averageTime,
+      benchmark,
+      performanceTag,
+      deviationFromBenchmark: deviation,
     } as DifficultyPerformance;
   });
 };
@@ -179,14 +193,51 @@ const mapLearningGaps = (raw: any): LearningGap[] => {
   const source = asArray(raw);
   return source.map((item: any) => {
     const score = toNumber(item.score ?? item.accuracy, 0);
+    const severity = (item.severity ?? toSeverity(score)) as any;
     return {
-      topic: item.topic ?? item.conceptName ?? item.chapter ?? 'General',
-      chapter: item.chapter ?? item.chapterName ?? 'N/A',
-      score,
-      severity: (item.severity ?? toSeverity(score)) as any,
+      gapId: String(item.gapId ?? item.id ?? `gap-${Math.random().toString(36).slice(2, 8)}`),
+      gapType: (item.gapType ?? 'conceptual') as any,
+      severity,
+      chapterId: item.chapterId,
+      chapterName: item.chapter ?? item.chapterName,
+      conceptId: item.conceptId,
+      conceptName: item.topic ?? item.conceptName ?? item.chapter ?? 'General',
+      currentAccuracy: score,
+      targetAccuracy: toNumber(item.targetAccuracy, 75),
+      impactScore: toNumber(item.impactScore, severity === 'critical' ? 90 : severity === 'high' ? 70 : 50),
       recommendation: item.recommendation ?? item.description ?? 'Practice and review this area.',
+      actionItems: Array.isArray(item.actionItems) ? item.actionItems : ['Review weak concepts', 'Attempt targeted practice'],
+      estimatedFixTime: item.estimatedFixTime,
     } as LearningGap;
   });
+};
+
+const mapFeedbackItem = (item: any) => ({
+  feedbackId: item.feedbackId || `fb-${Math.random().toString(36).slice(2, 8)}`,
+  feedbackType: item.feedbackType || item.type || 'general',
+  priority: item.priority || 'medium',
+  title: item.title || item.message?.split('.')[0] || 'Feedback',
+  description: item.description || item.message || '',
+  actionItems: item.actionItems || [],
+});
+
+const mapFeedback = (raw: any): any => {
+  if (!raw) return null;
+  return {
+    studentId: raw.studentId || raw.student_id,
+    examId: raw.examId || raw.exam_id,
+    courseId: raw.courseId || raw.course_id,
+    generatedAt: raw.generatedAt || raw.generated_at || new Date().toISOString(),
+    overallScore: raw.overallScore || raw.overall_score,
+    grade: raw.grade,
+    summary: raw.summary || raw.overallFeedback || raw.overall_feedback || '',
+    strengths: (raw.strengths || []).map(mapFeedbackItem),
+    improvements: (raw.improvements || raw.weaknesses || []).map(mapFeedbackItem),
+    recommendations: (raw.recommendations || []).map(mapFeedbackItem),
+    achievements: (raw.achievements || []).map(mapFeedbackItem),
+    warnings: (raw.warnings || []).map(mapFeedbackItem),
+    nextSteps: raw.nextSteps || raw.next_steps || [],
+  };
 };
 
 const mapStudentSummary = (raw: any): any => {
@@ -332,6 +383,24 @@ export const useAnalyticsStore = create<AnalyticsState>()(
             learningGaps: [],
             error: error.response?.data?.message || 'Failed to fetch learning gaps',
           });
+        }
+      },
+
+      fetchMyFeedback: async () => {
+        set((state) => ({
+          loadingStates: { ...state.loadingStates, feedback: true },
+          error: null,
+        }));
+        try {
+          const response = await analyticsAPI.getMyFeedback();
+          set((state) => ({
+            feedback: mapFeedback(response.data.data),
+            loadingStates: { ...state.loadingStates, feedback: false },
+          }));
+        } catch (error: any) {
+          set((state) => ({
+            loadingStates: { ...state.loadingStates, feedback: false },
+          }));
         }
       },
 

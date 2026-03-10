@@ -433,7 +433,7 @@ const ClassAnalytics: React.FC = () => {
                         direction={orderBy === 'rollNumber' ? order : 'asc'}
                         onClick={() => handleSort('rollNumber' as keyof StudentPerformance)}
                       >
-                        Roll No.
+                        USN / Roll No.
                       </TableSortLabel>
                     </TableCell>
                     <TableCell align="center">Phone</TableCell>
@@ -492,7 +492,7 @@ const ClassAnalytics: React.FC = () => {
                         </Box>
                       </TableCell>
                       <TableCell align="center">
-                        <Typography variant="body2">{student.rollNumber || 'N/A'}</Typography>
+                        <Typography variant="body2">{student.studentId || student.rollNumber || 'N/A'}</Typography>
                       </TableCell>
                       <TableCell align="center">
                         <Typography variant="body2">{student.phoneNumber || 'N/A'}</Typography>
@@ -921,8 +921,8 @@ const ClassAnalytics: React.FC = () => {
             <Box>
               <Typography variant="h6">{selectedStudent?.firstName} {selectedStudent?.lastName}</Typography>
               <Typography variant="body2" color="text.secondary">{selectedStudent?.email}</Typography>
-              {selectedStudent?.rollNumber && (
-                <Typography variant="body2" color="text.secondary">Roll No: {selectedStudent.rollNumber}</Typography>
+              {(selectedStudent?.studentId || selectedStudent?.rollNumber) && (
+                <Typography variant="body2" color="text.secondary">USN / Roll No: {selectedStudent.studentId || selectedStudent.rollNumber}</Typography>
               )}
               {selectedStudent?.phoneNumber && (
                 <Typography variant="body2" color="text.secondary">Phone: {selectedStudent.phoneNumber}</Typography>

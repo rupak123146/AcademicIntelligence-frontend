@@ -64,17 +64,24 @@ const GoalTracker: React.FC = () => {
   });
 
   useEffect(() => {
-    loadGoals();
+    if (user?.id) {
+      loadGoals();
+    }
   }, []);
 
   const loadGoals = async () => {
+    if (!user?.id) {
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       setError(null);
       const response = await goalAPI.getStudentGoals(user.id, { status: 'active' });
+      const responseData = response.data.data as any[];
       
       // Transform and enhance data
-      const enhancedGoals = response.data.data.map((goal: any) => ({
+      const enhancedGoals = (Array.isArray(responseData) ? responseData : []).map((goal: any) => ({
         ...goal,
         progress: Math.min(100, ((goal.currentValue / goal.targetValue) * 100)),
         daysRemaining: Math.ceil((new Date(goal.targetDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)),
@@ -89,10 +96,15 @@ const GoalTracker: React.FC = () => {
   };
 
   const handleCreateGoal = async () => {
+    if (!user?.id) {
+      setError('User session not found');
+      return;
+    }
+
     try {
       await goalAPI.createGoal({
         studentId: user.id,
-        courseId: user.currentCourseId || 1,
+        courseId: (goals[0] as any)?.courseId || 1,
         ...newGoal,
       });
       

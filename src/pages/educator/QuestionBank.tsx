@@ -14,8 +14,8 @@ import {
   CardContent,
   Chip,
   IconButton,
-  Menu,
-  MenuItem,
+  Tooltip,
+  Snackbar,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -24,6 +24,7 @@ import {
   FormControl,
   InputLabel,
   Select,
+  MenuItem,
   Tabs,
   Tab,
   InputAdornment,
@@ -36,7 +37,6 @@ import {
 } from '@mui/material';
 import {
   Add as AddIcon,
-  MoreVert as MoreIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
   ContentCopy as CopyIcon,
@@ -70,11 +70,16 @@ const QuestionBank: React.FC = () => {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [selectedQuestion, setSelectedQuestion] = useState<Question | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
+    open: false,
+    message: '',
+    severity: 'success',
+  });
 
   const [subjects, setSubjects] = useState<any[]>([]);
   const [chapters, setChapters] = useState<any[]>([]);
@@ -150,53 +155,67 @@ const QuestionBank: React.FC = () => {
     }
   };
 
-  const handleSubjectChange = async (subjectId: string) => {
-    setQuestionForm({ ...questionForm, subjectId, chapterId: '', conceptId: '' });
-    setChapters([]);
-    setConcepts([]);
-    setNewConceptName('');
+  const loadChaptersForSubject = async (subjectId: string) => {
+    if (!subjectId) {
+      setChapters([]);
+      return;
+    }
 
-    if (subjectId && chapterCacheRef.current[subjectId]) {
+    if (chapterCacheRef.current[subjectId]) {
       setChapters(chapterCacheRef.current[subjectId]);
       return;
     }
 
-    if (subjectId) {
-      try {
-        const response = await subjectAPI.getChaptersBySubject(subjectId, { limit: 500, simple: true });
-        const data = response.data.data as { chapters?: any[] } | any[];
-        const chaptersList = Array.isArray(data) ? data : (data?.chapters || []);
-        const uniqueChapters = dedupeChapters(chaptersList);
-        chapterCacheRef.current[subjectId] = uniqueChapters;
-        setChapters(uniqueChapters);
-      } catch (err: any) {
-        console.error('Failed to fetch chapters:', err);
-      }
+    try {
+      const response = await subjectAPI.getChaptersBySubject(subjectId, { limit: 500, simple: true });
+      const data = response.data.data as { chapters?: any[] } | any[];
+      const chaptersList = Array.isArray(data) ? data : (data?.chapters || []);
+      const uniqueChapters = dedupeChapters(chaptersList);
+      chapterCacheRef.current[subjectId] = uniqueChapters;
+      setChapters(uniqueChapters);
+    } catch (err: any) {
+      console.error('Failed to fetch chapters:', err);
+      setChapters([]);
     }
   };
 
-  const handleChapterChange = async (chapterId: string) => {
-    setQuestionForm({ ...questionForm, chapterId, conceptId: '' });
-    setConcepts([]);
-    setNewConceptName('');
+  const loadConceptsForChapter = async (chapterId: string) => {
+    if (!chapterId) {
+      setConcepts([]);
+      return;
+    }
 
-    if (chapterId && conceptCacheRef.current[chapterId]) {
+    if (conceptCacheRef.current[chapterId]) {
       setConcepts(conceptCacheRef.current[chapterId]);
       return;
     }
 
-    if (chapterId) {
-      try {
-        const response = await chapterAPI.getConceptsByChapter(chapterId, { limit: 500, simple: true });
-        const data = response.data.data as { concepts?: any[] } | any[];
-        const conceptsList = Array.isArray(data) ? data : (data?.concepts || []);
-        const uniqueConcepts = dedupeConcepts(conceptsList);
-        conceptCacheRef.current[chapterId] = uniqueConcepts;
-        setConcepts(uniqueConcepts);
-      } catch (err: any) {
-        console.error('Failed to fetch concepts:', err);
-      }
+    try {
+      const response = await chapterAPI.getConceptsByChapter(chapterId, { limit: 500, simple: true });
+      const data = response.data.data as { concepts?: any[] } | any[];
+      const conceptsList = Array.isArray(data) ? data : (data?.concepts || []);
+      const uniqueConcepts = dedupeConcepts(conceptsList);
+      conceptCacheRef.current[chapterId] = uniqueConcepts;
+      setConcepts(uniqueConcepts);
+    } catch (err: any) {
+      console.error('Failed to fetch concepts:', err);
+      setConcepts([]);
     }
+  };
+
+  const handleSubjectChange = async (subjectId: string) => {
+    setQuestionForm((prev) => ({ ...prev, subjectId, chapterId: '', conceptId: '' }));
+    setChapters([]);
+    setConcepts([]);
+    setNewConceptName('');
+    await loadChaptersForSubject(subjectId);
+  };
+
+  const handleChapterChange = async (chapterId: string) => {
+    setQuestionForm((prev) => ({ ...prev, chapterId, conceptId: '' }));
+    setConcepts([]);
+    setNewConceptName('');
+    await loadConceptsForChapter(chapterId);
   };
 
   const handleCreateConceptInline = async () => {
@@ -242,13 +261,100 @@ const QuestionBank: React.FC = () => {
     }
   };
 
-  const handleMenuOpen = (event: React.MouseEvent<HTMLElement>, question: Question) => {
-    setAnchorEl(event.currentTarget);
-    setSelectedQuestion(question);
+  const mapQuestionToForm = (question: Question) => {
+    const currentOptions = Array.isArray(question.options) ? question.options : [];
+    const normalizedOptions = currentOptions.map((opt) => ({
+      optionText: String((opt as any).optionText ?? (opt as any).text ?? ''),
+      isCorrect: !!opt.isCorrect,
+    }));
+
+    while (normalizedOptions.length < 4) {
+      normalizedOptions.push({ optionText: '', isCorrect: false });
+    }
+
+    const getFieldId = (value: any) => {
+      if (!value) return '';
+      if (typeof value === 'string' || typeof value === 'number') return String(value);
+      if (typeof value === 'object' && value.id) return String(value.id);
+      return '';
+    };
+
+    const resolvedCorrectAnswer =
+      question.questionType === 'true_false' && !question.correctAnswer
+        ? (() => {
+            const trueOption = normalizedOptions.find((opt) => opt.optionText.trim().toLowerCase() === 'true');
+            const falseOption = normalizedOptions.find((opt) => opt.optionText.trim().toLowerCase() === 'false');
+            if (trueOption?.isCorrect) return 'true';
+            if (falseOption?.isCorrect) return 'false';
+            return '';
+          })()
+        : String(question.correctAnswer || '');
+
+    return {
+      questionText: question.questionText || '',
+      questionType: (question.questionType || 'mcq') as Question['questionType'],
+      difficulty: (question.difficulty || 'medium') as Question['difficulty'],
+      marks: Number(question.marks || 1),
+      subjectId: getFieldId((question as any).subjectId ?? (question as any).subject),
+      chapterId: getFieldId((question as any).chapterId ?? (question as any).chapter),
+      conceptId: getFieldId((question as any).conceptId ?? (question as any).concept),
+      options: normalizedOptions,
+      correctAnswer: resolvedCorrectAnswer,
+    };
   };
 
-  const handleMenuClose = () => {
-    setAnchorEl(null);
+  const handleEditQuestion = async (question: Question) => {
+    setSelectedQuestion(question);
+    setIsEditMode(true);
+    const formState = mapQuestionToForm(question);
+    setQuestionForm(formState);
+
+    // Ensure chapter/concept dropdowns are loaded for selected subject/chapter without mutating form state.
+    if (formState.subjectId) {
+      await loadChaptersForSubject(formState.subjectId);
+    }
+    if (formState.chapterId) {
+      await loadConceptsForChapter(formState.chapterId);
+    }
+
+    setCreateDialogOpen(true);
+  };
+
+  const handleDuplicateQuestion = async (question: Question) => {
+    try {
+      const currentOptions = Array.isArray(question.options) ? question.options : [];
+      const payload = {
+        questionText: `${question.questionText} (Copy)`,
+        questionType: question.questionType,
+        difficulty: question.difficulty,
+        marks: Number(question.marks || 1),
+        subjectId: (question as any).subjectId,
+        chapterId: (question as any).chapterId,
+        conceptId: (question as any).conceptId,
+        options:
+          question.questionType === 'mcq' || question.questionType === 'multiple_choice'
+            ? currentOptions.map((opt: any) => ({
+                text: String(opt.optionText ?? opt.text ?? ''),
+                isCorrect: !!opt.isCorrect,
+              }))
+            : undefined,
+        correctAnswer:
+          question.questionType !== 'mcq' && question.questionType !== 'multiple_choice'
+            ? question.correctAnswer
+            : undefined,
+      };
+
+      const response = await questionAPI.createQuestion(payload as any);
+      const duplicated = response.data.data as Question;
+      setQuestions((prev) => [duplicated, ...prev]);
+      setSnackbar({ open: true, message: 'Question duplicated successfully', severity: 'success' });
+    } catch (err: any) {
+      setSnackbar({
+        open: true,
+        message: err.response?.data?.message || 'Failed to duplicate question',
+        severity: 'error',
+      });
+    }
   };
 
   const handleDelete = async () => {
@@ -271,6 +377,14 @@ const QuestionBank: React.FC = () => {
         return;
       }
 
+      const isChoiceQuestion = questionForm.questionType === 'mcq' || questionForm.questionType === 'multiple_choice';
+      const isTrueFalseQuestion = questionForm.questionType === 'true_false';
+
+      const trueFalseOptions = [
+        { text: 'True', isCorrect: questionForm.correctAnswer === 'true' },
+        { text: 'False', isCorrect: questionForm.correctAnswer === 'false' },
+      ];
+
       const data = {
         questionText: questionForm.questionText,
         questionType: questionForm.questionType,
@@ -279,21 +393,31 @@ const QuestionBank: React.FC = () => {
         subjectId: questionForm.subjectId,
         chapterId: questionForm.chapterId,
         conceptId: questionForm.conceptId,
-        options: questionForm.questionType === 'mcq' || questionForm.questionType === 'multiple_choice' 
+        options: isChoiceQuestion
           ? questionForm.options.filter(opt => opt.optionText).map(opt => ({
               text: opt.optionText,
               isCorrect: opt.isCorrect,
             }))
-          : undefined,
-        correctAnswer: questionForm.questionType !== 'mcq' && questionForm.questionType !== 'multiple_choice'
+          : isTrueFalseQuestion
+            ? trueFalseOptions
+            : undefined,
+        correctAnswer: !isChoiceQuestion
           ? questionForm.correctAnswer
           : undefined,
       };
 
-      const response = await questionAPI.createQuestion(data);
-      const newQuestion = response.data.data as Question;
-      
-      setQuestions([newQuestion, ...questions]);
+      if (isEditMode && selectedQuestion) {
+        const response = await questionAPI.updateQuestion(String(selectedQuestion.id), data as any);
+        const updatedQuestion = response.data.data as Question;
+        setQuestions((prev) => prev.map((q) => (q.id === selectedQuestion.id ? updatedQuestion : q)));
+        setSnackbar({ open: true, message: 'Question updated successfully', severity: 'success' });
+      } else {
+        const response = await questionAPI.createQuestion(data);
+        const newQuestion = response.data.data as Question;
+        setQuestions((prev) => [newQuestion, ...prev]);
+        setSnackbar({ open: true, message: 'Question created successfully', severity: 'success' });
+      }
+
       setCreateDialogOpen(false);
       resetForm();
     } catch (err: any) {
@@ -321,6 +445,8 @@ const QuestionBank: React.FC = () => {
     setChapters([]);
     setConcepts([]);
     setNewConceptName('');
+    setIsEditMode(false);
+    setSelectedQuestion(null);
   };
 
   const getDifficultyColor = (difficulty: string) => {
@@ -407,9 +533,29 @@ const QuestionBank: React.FC = () => {
               </Box>
             )}
           </Box>
-          <IconButton onClick={(e) => handleMenuOpen(e, question)}>
-            <MoreIcon />
-          </IconButton>
+          <Box display="flex" alignItems="center" gap={0.5}>
+            <Tooltip title="Edit">
+              <IconButton onClick={() => handleEditQuestion(question)}>
+                <EditIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Duplicate">
+              <IconButton onClick={() => handleDuplicateQuestion(question)}>
+                <CopyIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Delete">
+              <IconButton
+                onClick={() => {
+                  setSelectedQuestion(question);
+                  setDeleteDialogOpen(true);
+                }}
+                color="error"
+              >
+                <DeleteIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </Box>
         </Box>
       </CardContent>
     </Card>
@@ -524,22 +670,17 @@ const QuestionBank: React.FC = () => {
         </Paper>
       )}
 
-      {/* Menu */}
-      <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleMenuClose}>
-        <MenuItem onClick={() => { /* Edit question */ handleMenuClose(); }}>
-          <EditIcon sx={{ mr: 1 }} /> Edit
-        </MenuItem>
-        <MenuItem onClick={() => { /* Duplicate question */ handleMenuClose(); }}>
-          <CopyIcon sx={{ mr: 1 }} /> Duplicate
-        </MenuItem>
-        <MenuItem onClick={() => { setDeleteDialogOpen(true); handleMenuClose(); }} sx={{ color: 'error.main' }}>
-          <DeleteIcon sx={{ mr: 1 }} /> Delete
-        </MenuItem>
-      </Menu>
-
       {/* Create Question Dialog */}
-      <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} maxWidth="md" fullWidth>
-        <DialogTitle>Add New Question</DialogTitle>
+      <Dialog
+        open={createDialogOpen}
+        onClose={() => {
+          setCreateDialogOpen(false);
+          resetForm();
+        }}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>{isEditMode ? 'Edit Question' : 'Add New Question'}</DialogTitle>
         <DialogContent>
           <Grid container spacing={3} sx={{ mt: 1 }}>
             <Grid item xs={12}>
@@ -740,7 +881,14 @@ const QuestionBank: React.FC = () => {
           </Grid>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setCreateDialogOpen(false)}>Cancel</Button>
+          <Button
+            onClick={() => {
+              setCreateDialogOpen(false);
+              resetForm();
+            }}
+          >
+            Cancel
+          </Button>
           <Button 
             variant="contained" 
             onClick={handleCreateQuestion}
@@ -752,7 +900,7 @@ const QuestionBank: React.FC = () => {
               !questionForm.options.some(opt => opt.isCorrect)
             )}
           >
-            Add Question
+            {isEditMode ? 'Save Changes' : 'Add Question'}
           </Button>
         </DialogActions>
       </Dialog>
@@ -770,6 +918,20 @@ const QuestionBank: React.FC = () => {
           <Button color="error" variant="contained" onClick={handleDelete}>Delete</Button>
         </DialogActions>
       </Dialog>
+
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={3000}
+        onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
+      >
+        <Alert
+          severity={snackbar.severity}
+          onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

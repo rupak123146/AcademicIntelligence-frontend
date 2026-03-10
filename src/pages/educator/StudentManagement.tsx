@@ -37,10 +37,8 @@ import {
 } from '@mui/material';
 import {
   Search as SearchIcon,
-  Add as AddIcon,
   MoreVert as MoreIcon,
   Assignment as TaskIcon,
-  CheckCircle as CheckIcon,
 } from '@mui/icons-material';
 import { userAPI, taskAPI } from '@/services/api';
 
@@ -98,15 +96,6 @@ const getClassLetter = (student: Student): string => {
   }
   return '-';
 };
-
-interface Task {
-  _id: string;
-  title: string;
-  description: string;
-  dueDate: string;
-  totalMarks: number;
-  status: string;
-}
 
 const EducatorStudentManagement: React.FC = () => {
   const [students, setStudents] = useState<Student[]>([]);
@@ -181,7 +170,7 @@ const EducatorStudentManagement: React.FC = () => {
           s.firstName.toLowerCase().includes(query) ||
           s.lastName.toLowerCase().includes(query) ||
           s.email.toLowerCase().includes(query) ||
-          s.rollNumber.toLowerCase().includes(query)
+          (s.studentId || s.rollNumber || '').toLowerCase().includes(query)
       );
     }
 
@@ -260,7 +249,7 @@ const EducatorStudentManagement: React.FC = () => {
         ...taskForm,
       });
 
-      const taskId = taskResponse.data.data._id;
+      const taskId = (taskResponse.data.data as { _id: string })._id;
 
       // Assign task to selected students
       await taskAPI.assignTask(taskId, Array.from(selectedStudents));
@@ -390,7 +379,7 @@ const EducatorStudentManagement: React.FC = () => {
                 </TableCell>
                 <TableCell>Student</TableCell>
                 <TableCell>Class</TableCell>
-                <TableCell>Roll No.</TableCell>
+                <TableCell>USN / Roll No.</TableCell>
                 <TableCell>Phone</TableCell>
                 <TableCell align="right">Actions</TableCell>
               </TableRow>
@@ -431,7 +420,7 @@ const EducatorStudentManagement: React.FC = () => {
                         variant="outlined"
                       />
                     </TableCell>
-                    <TableCell>{student.rollNumber}</TableCell>
+                    <TableCell>{student.studentId || student.rollNumber || 'N/A'}</TableCell>
                     <TableCell>{student.phoneNumber}</TableCell>
                     <TableCell align="right">
                       <IconButton
