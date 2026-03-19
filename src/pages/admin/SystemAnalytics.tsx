@@ -68,6 +68,22 @@ interface SystemStats {
 }
 
 const SystemAnalytics: React.FC = () => {
+  const extractCollection = (payload: any, preferredKeys: string[] = []): any[] => {
+    if (Array.isArray(payload)) return payload;
+    if (!payload || typeof payload !== 'object') return [];
+
+    for (const key of preferredKeys) {
+      if (Array.isArray(payload[key])) return payload[key];
+    }
+
+    const commonKeys = ['items', 'results', 'rows', 'list', 'data'];
+    for (const key of commonKeys) {
+      if (Array.isArray(payload[key])) return payload[key];
+    }
+
+    return [];
+  };
+
   const toDisplayLabel = (value: unknown, fallback = 'N/A'): string => {
     if (value === null || value === undefined || value === '') return fallback;
     if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
@@ -129,6 +145,7 @@ const SystemAnalytics: React.FC = () => {
           const data = analyticsRes.value.data.data as any;
           systemData = {
             totalUsers: data.totalUsers || 0,
+            examsTaken: Number(data.examsTaken) || 0,
             userActivity: Array.isArray(data.userActivity) ? data.userActivity : [],
             examActivity: Array.isArray(data.examActivity) ? data.examActivity : [],
             departmentUsage: Array.isArray(data.departmentUsage)
@@ -139,6 +156,14 @@ const SystemAnalytics: React.FC = () => {
                   users: Number(item?.users) || 0,
                 }))
               : [],
+            topExams: Array.isArray(data.topExams)
+              ? data.topExams.map((item: any) => ({
+                  exam: toDisplayLabel(item?.exam ?? item?.title, 'Untitled Exam'),
+                  attempts: Number(item?.attempts) || 0,
+                  avgScore: Math.round(Number(item?.avgScore) || 0),
+                  completion: Math.round(Number(item?.completion) || 0),
+                }))
+              : [],
             avgResponseTime: data.avgResponseTime || '-',
             storageUsed: data.storageUsed || '-',
           };
@@ -146,7 +171,8 @@ const SystemAnalytics: React.FC = () => {
 
         // Process exams response
         if (examsRes.status === 'fulfilled') {
-          const exams = examsRes.value.data.data as any[];
+          const examsPayload = examsRes.value.data.data as any;
+          const exams = extractCollection(examsPayload, ['exams']);
           
           // Calculate exam statistics
           const examStats = exams?.map((e: any) => ({
@@ -157,17 +183,27 @@ const SystemAnalytics: React.FC = () => {
           })) || [];
           
           // Sort by attempts and take top 5
-          systemData.topExams = examStats
+          const computedTopExams = examStats
             .sort((a: any, b: any) => b.attempts - a.attempts)
             .slice(0, 5);
+          if (computedTopExams.length > 0 || !Array.isArray(systemData.topExams) || systemData.topExams.length === 0) {
+            systemData.topExams = computedTopExams;
+          }
           
-          systemData.examsTaken = exams?.reduce((sum: number, e: any) => sum + (e.attemptCount || 0), 0) || 0;
+          const computedExamsTaken = exams.reduce((sum: number, e: any) => sum + (Number(e?.attemptCount) || 0), 0);
+          if (computedExamsTaken > 0 || !(Number(systemData.examsTaken) > 0)) {
+            systemData.examsTaken = computedExamsTaken || Number(systemData.examsTaken) || 0;
+          }
         }
 
         // Process users response
         if (usersRes.status === 'fulfilled') {
-          const users = usersRes.value.data.data as any[];
-          systemData.totalUsers = users?.length || 0;
+          const usersPayload = usersRes.value.data.data as any;
+          const users = extractCollection(usersPayload, ['users']);
+          const derivedUsersCount = users.length;
+          if (derivedUsersCount > 0 || !(Number(systemData.totalUsers) > 0)) {
+            systemData.totalUsers = derivedUsersCount || Number(systemData.totalUsers) || 0;
+          }
 
           // Calculate department usage
           const deptMap = new Map<string, number>();
@@ -176,7 +212,7 @@ const SystemAnalytics: React.FC = () => {
             deptMap.set(dept, (deptMap.get(dept) || 0) + 1);
           });
 
-          const total = users?.length || 1;
+          const total = users.length || 1;
           const deptUsage = Array.from(deptMap.entries())
             .map(([name, users]) => ({
               name,

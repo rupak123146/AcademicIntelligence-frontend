@@ -109,6 +109,22 @@ const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const reportRef = useRef<HTMLDivElement>(null);
 
+  const extractCollection = (payload: any, preferredKeys: string[] = []): any[] => {
+    if (Array.isArray(payload)) return payload;
+    if (!payload || typeof payload !== 'object') return [];
+
+    for (const key of preferredKeys) {
+      if (Array.isArray(payload[key])) return payload[key];
+    }
+
+    const commonKeys = ['items', 'results', 'rows', 'list', 'data'];
+    for (const key of commonKeys) {
+      if (Array.isArray(payload[key])) return payload[key];
+    }
+
+    return [];
+  };
+
   const toDisplayLabel = (value: unknown, fallback = 'N/A'): string => {
     if (value === null || value === undefined || value === '') return fallback;
     if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
@@ -208,8 +224,10 @@ const Dashboard: React.FC = () => {
 
         // Process exams response
         if (examsResponse.status === 'fulfilled') {
-          const exams = examsResponse.value.data.data as any[];
-          systemData.totalExams = exams?.length || 0;
+          const examsPayload = examsResponse.value.data.data as any;
+          const exams = extractCollection(examsPayload, ['exams']);
+          const analyticsTotalExams = Number((systemData as any).totalExams) || 0;
+          systemData.totalExams = analyticsTotalExams || exams.length || 0;
         }
 
         console.log('Setting stats:', systemData);

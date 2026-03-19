@@ -92,6 +92,22 @@ interface User {
 }
 
 const UserManagement: React.FC = () => {
+  const extractCollection = (payload: any, preferredKeys: string[] = []): any[] => {
+    if (Array.isArray(payload)) return payload;
+    if (!payload || typeof payload !== 'object') return [];
+
+    for (const key of preferredKeys) {
+      if (Array.isArray(payload[key])) return payload[key];
+    }
+
+    const commonKeys = ['items', 'results', 'rows', 'list', 'data'];
+    for (const key of commonKeys) {
+      if (Array.isArray(payload[key])) return payload[key];
+    }
+
+    return [];
+  };
+
   const [users, setUsers] = useState<User[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [sections, setSections] = useState<Section[]>([]);
@@ -166,7 +182,7 @@ const UserManagement: React.FC = () => {
       console.log('Fetching users...');
       const response = await authAPI.getUsers();
       console.log('Users response:', response.data);
-      const userData = (response.data.data as any[]) || [];
+      const userData = extractCollection(response.data.data as any, ['users']);
       
       const formattedUsers: User[] = userData.map(mapUser);
       
@@ -216,14 +232,17 @@ const UserManagement: React.FC = () => {
       ]);
       console.log('Departments fetched:', deptRes.data.data);
       console.log('Sections fetched:', sectRes.data.data);
-      const normalizedDepartments = ((deptRes.data.data as Department[]) || []).map((dept: any) => ({
+      const departmentsData = extractCollection(deptRes.data.data as any, ['departments']) as Department[];
+      const sectionsData = extractCollection(sectRes.data.data as any, ['sections']) as Section[];
+
+      const normalizedDepartments = departmentsData.map((dept: any) => ({
         _id: dept._id || dept.id,
         id: dept.id || dept._id,
         name: dept.name,
         code: dept.code,
       }));
       setDepartments(normalizedDepartments);
-      setSections(normalizeSections((sectRes.data.data as Section[]) || []));
+      setSections(normalizeSections(sectionsData));
     } catch (err: any) {
       console.error('Failed to fetch departments/sections:', err);
     }
@@ -249,7 +268,7 @@ const UserManagement: React.FC = () => {
         try {
           console.log('Loading sections for department:', userForm.departmentId);
           const response = await authAPI.getSections(userForm.departmentId);
-          const sectionsData = normalizeSections((response.data.data as Section[]) || []);
+          const sectionsData = normalizeSections(extractCollection(response.data.data as any, ['sections']) as Section[]);
           console.log('Sections loaded:', sectionsData);
           setSections(sectionsData);
         } catch (error: any) {
