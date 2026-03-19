@@ -878,7 +878,7 @@ const ClassAnalytics: React.FC = () => {
               </Box>
               {getRecommendations().length > 0 ? (
                 <List sx={{ p: 0 }}>
-                  {getRecommendations().map((rec: string, index: number) => (
+                  {getRecommendations().map((rec: any, index: number) => (
                     <ListItem
                       key={index}
                       sx={{
@@ -895,7 +895,10 @@ const ClassAnalytics: React.FC = () => {
                           {index + 1}
                         </Avatar>
                       </ListItemAvatar>
-                      <ListItemText primary={rec} />
+                      <ListItemText
+                        primary={typeof rec === 'string' ? rec : (rec?.title || rec?.name || rec?.description || 'Recommendation')}
+                        secondary={typeof rec === 'object' && rec?.description ? rec.description : undefined}
+                      />
                     </ListItem>
                   ))}
                 </List>

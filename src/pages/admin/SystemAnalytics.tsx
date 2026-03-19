@@ -68,6 +68,24 @@ interface SystemStats {
 }
 
 const SystemAnalytics: React.FC = () => {
+  const toDisplayLabel = (value: unknown, fallback = 'N/A'): string => {
+    if (value === null || value === undefined || value === '') return fallback;
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+      return String(value);
+    }
+    if (typeof value === 'object') {
+      const obj = value as Record<string, unknown>;
+      const name = typeof obj.name === 'string' ? obj.name : '';
+      const code = typeof obj.code === 'string' ? obj.code : '';
+      const id = typeof obj.id === 'string' ? obj.id : '';
+      if (name && code) return `${name} (${code})`;
+      if (name) return name;
+      if (code) return code;
+      if (id) return id;
+    }
+    return fallback;
+  };
+
   const [timeRange, setTimeRange] = useState('30days');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -111,9 +129,16 @@ const SystemAnalytics: React.FC = () => {
           const data = analyticsRes.value.data.data as any;
           systemData = {
             totalUsers: data.totalUsers || 0,
-            userActivity: data.userActivity || [],
-            examActivity: data.examActivity || [],
-            departmentUsage: data.departmentUsage || [],
+            userActivity: Array.isArray(data.userActivity) ? data.userActivity : [],
+            examActivity: Array.isArray(data.examActivity) ? data.examActivity : [],
+            departmentUsage: Array.isArray(data.departmentUsage)
+              ? data.departmentUsage.map((item: any) => ({
+                  ...item,
+                  name: toDisplayLabel(item?.name ?? item?.department ?? item?.dept, 'Other'),
+                  value: Number(item?.value) || 0,
+                  users: Number(item?.users) || 0,
+                }))
+              : [],
             avgResponseTime: data.avgResponseTime || '-',
             storageUsed: data.storageUsed || '-',
           };
@@ -125,7 +150,7 @@ const SystemAnalytics: React.FC = () => {
           
           // Calculate exam statistics
           const examStats = exams?.map((e: any) => ({
-            exam: e.title,
+            exam: toDisplayLabel(e?.title ?? e?.exam, 'Untitled Exam'),
             attempts: e.attemptCount || 0,
             avgScore: Math.round(e.averageScore || 0),
             completion: Math.round(e.completionRate || 0),
@@ -147,7 +172,7 @@ const SystemAnalytics: React.FC = () => {
           // Calculate department usage
           const deptMap = new Map<string, number>();
           users?.forEach((u: any) => {
-            const dept = u.department || 'Other';
+            const dept = toDisplayLabel(u?.department ?? u?.departmentName ?? u?.departmentCode, 'Other');
             deptMap.set(dept, (deptMap.get(dept) || 0) + 1);
           });
 

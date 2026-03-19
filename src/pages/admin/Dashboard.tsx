@@ -108,6 +108,24 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, subtitle, icon, color
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const reportRef = useRef<HTMLDivElement>(null);
+
+  const toDisplayLabel = (value: unknown, fallback = 'N/A'): string => {
+    if (value === null || value === undefined || value === '') return fallback;
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+      return String(value);
+    }
+    if (typeof value === 'object') {
+      const obj = value as Record<string, unknown>;
+      const name = typeof obj.name === 'string' ? obj.name : '';
+      const code = typeof obj.code === 'string' ? obj.code : '';
+      const id = typeof obj.id === 'string' ? obj.id : '';
+      if (name && code) return `${name} (${code})`;
+      if (name) return name;
+      if (code) return code;
+      if (id) return id;
+    }
+    return fallback;
+  };
   
   const [stats, setStats] = useState<SystemStats>({
     totalUsers: 0,
@@ -164,9 +182,25 @@ const Dashboard: React.FC = () => {
             totalEducators: data.totalEducators || 0,
             totalAdmins: data.totalAdmins || 0,
             activeCourses: data.activeCourses || 0,
-            userGrowth: data.userGrowth || [],
-            departmentStats: data.departmentStats || [],
-            recentActivity: data.recentActivity || [],
+            userGrowth: Array.isArray(data.userGrowth) ? data.userGrowth : [],
+            departmentStats: Array.isArray(data.departmentStats)
+              ? data.departmentStats.map((dept: any) => ({
+                  ...dept,
+                  dept: toDisplayLabel(dept?.dept ?? dept?.department ?? dept?.name, 'N/A'),
+                  students: Number(dept?.students) || 0,
+                  educators: Number(dept?.educators) || 0,
+                  exams: Number(dept?.exams) || 0,
+                }))
+              : [],
+            recentActivity: Array.isArray(data.recentActivity)
+              ? data.recentActivity.map((activity: any) => ({
+                  ...activity,
+                  action: toDisplayLabel(activity?.action, 'Activity updated'),
+                  user: toDisplayLabel(activity?.user, 'System'),
+                  time: toDisplayLabel(activity?.time, ''),
+                  type: toDisplayLabel(activity?.type, 'system'),
+                }))
+              : [],
           };
         } else {
           console.error('Analytics request failed:', analyticsResponse.reason);
