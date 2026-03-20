@@ -197,6 +197,7 @@ const Dashboard: React.FC = () => {
             totalStudents: data.totalStudents || 0,
             totalEducators: data.totalEducators || 0,
             totalAdmins: data.totalAdmins || 0,
+            totalExams: Number(data.totalExams) || 0,
             activeCourses: data.activeCourses || 0,
             userGrowth: Array.isArray(data.userGrowth) ? data.userGrowth : [],
             departmentStats: Array.isArray(data.departmentStats)
@@ -226,8 +227,9 @@ const Dashboard: React.FC = () => {
         if (examsResponse.status === 'fulfilled') {
           const examsPayload = examsResponse.value.data.data as any;
           const exams = extractCollection(examsPayload, ['exams']);
+          const examsMetaTotal = Number(examsResponse.value.data?.meta?.total) || 0;
           const analyticsTotalExams = Number((systemData as any).totalExams) || 0;
-          systemData.totalExams = analyticsTotalExams || exams.length || 0;
+          systemData.totalExams = analyticsTotalExams || examsMetaTotal || exams.length || 0;
         }
 
         console.log('Setting stats:', systemData);
