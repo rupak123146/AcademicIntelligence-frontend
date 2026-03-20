@@ -87,6 +87,13 @@ const LearningGapsView: React.FC<LearningGapsViewProps> = ({ studentId, courseId
         ? (gap.accuracy < 40 ? 'high' : gap.accuracy < 60 ? 'medium' : 'low')
         : 'medium';
 
+      const rawImpact = Number(
+        gap?.impactScore ??
+        gap?.impact_score ??
+        (typeof gap?.accuracy === 'number' ? (100 - gap.accuracy) : 0)
+      );
+      const normalizedImpact = rawImpact > 1 ? rawImpact / 100 : rawImpact;
+
       return {
         conceptName: gap?.conceptName || gap?.concept || gap?.topic || 'Unknown Topic',
         chapterName: gap?.chapterName || gap?.chapter || 'General',
@@ -98,7 +105,7 @@ const LearningGapsView: React.FC<LearningGapsViewProps> = ({ studentId, courseId
           ? gap.recommendedActions
           : (gap?.recommendation ? [gap.recommendation] : ['Review chapter notes and reattempt practice questions.']),
         estimatedRecoveryTime: Number(gap?.estimatedRecoveryTime || gap?.estimatedTime || 7),
-        impactScore: Number(gap?.impactScore || (100 - Number(gap?.accuracy || 0)) || 0),
+        impactScore: Math.max(0, Math.min(1, normalizedImpact)),
       };
     });
 

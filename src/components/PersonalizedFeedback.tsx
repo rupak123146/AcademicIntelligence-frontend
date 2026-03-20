@@ -90,6 +90,62 @@ const PersonalizedFeedback: React.FC<PersonalizedFeedbackProps> = ({ studentId, 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const normalizePriority = (value: unknown): string => {
+    const raw = String(value || '').toLowerCase();
+    if (raw === 'critical') return 'high';
+    if (['high', 'medium', 'low'].includes(raw)) return raw;
+    return 'medium';
+  };
+
+  const mapFeedbackItems = (items: any[] | undefined, fallbackType: string): FeedbackItem[] => {
+    return (Array.isArray(items) ? items : []).map((item: any) => {
+      const actionItems = Array.isArray(item?.action_items)
+        ? item.action_items
+        : Array.isArray(item?.actionItems)
+          ? item.actionItems
+          : [];
+
+      return {
+        type: String(item?.feedback_type || item?.feedbackType || item?.type || fallbackType),
+        priority: normalizePriority(item?.priority),
+        message: String(item?.description || item?.message || item?.title || 'No feedback details available.'),
+        actionable: actionItems.length > 0,
+        metadata: {
+          estimatedTime: item?.metadata?.estimatedTime,
+          actionItems,
+          resources: Array.isArray(item?.resources) ? item.resources : [],
+        },
+      };
+    });
+  };
+
+  const normalizeFeedbackData = (rawData: any): PersonalizedFeedbackData => {
+    const strengths = mapFeedbackItems(rawData?.strengths, 'strength');
+    const improvements = mapFeedbackItems(rawData?.improvements, 'improvement');
+    const warnings = mapFeedbackItems(rawData?.warnings, 'warning');
+    const recommendations = mapFeedbackItems(rawData?.recommendations, 'recommendation');
+
+    const nextSteps = recommendations
+      .flatMap((item) => (Array.isArray(item.metadata?.actionItems) ? item.metadata.actionItems : []))
+      .filter((step: unknown) => typeof step === 'string' && step.trim().length > 0)
+      .slice(0, 5);
+
+    const confidenceRaw = rawData?.confidenceScore ?? rawData?.confidence_score ?? rawData?.confidence_level;
+    const normalizedConfidence = typeof confidenceRaw === 'number'
+      ? (confidenceRaw > 1 ? confidenceRaw / 100 : confidenceRaw)
+      : 0.8;
+
+    return {
+      overallFeedback: String(rawData?.overallFeedback || rawData?.summary || 'Here is your latest personalized learning feedback.'),
+      strengths,
+      weaknesses: [...improvements, ...warnings],
+      recommendations,
+      nextSteps,
+      estimatedImprovementTime: Number(rawData?.estimatedImprovementTime || rawData?.estimated_improvement_time || 0),
+      confidenceScore: Math.max(0, Math.min(1, normalizedConfidence)),
+    };
+  };
+
   useEffect(() => {
     loadFeedback();
   }, [actualStudentId, courseId, examId]);
@@ -100,8 +156,8 @@ const PersonalizedFeedback: React.FC<PersonalizedFeedbackProps> = ({ studentId, 
       setError(null);
 
       const response = await analyticsAPI.getFeedback(actualStudentId, courseId, examId);
-      const payload = response.data?.data as PersonalizedFeedbackData | undefined;
-      setFeedback(payload || null);
+      const payload = response.data?.data;
+      setFeedback(payload ? normalizeFeedbackData(payload) : null);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to load personalized feedback');
     } finally {
@@ -198,7 +254,7 @@ const PersonalizedFeedback: React.FC<PersonalizedFeedbackProps> = ({ studentId, 
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
         <AutoAwesomeIcon color="primary" />
         <Typography variant="caption" color="text.secondary">
-          AI-Powered Feedback • Confidence: {(feedback.confidenceScore * 100).toFixed(0)}%
+          AI-Powered Feedback • Confidence: {Math.round((feedback.confidenceScore || 0) * 100)}%
         </Typography>
       </Box>
 
