@@ -56,13 +56,63 @@ interface LearningGapsData {
 }
 
 interface LearningGapsViewProps {
-  studentId?: number;
-  courseId: number;
+  studentId?: number | string;
+  courseId?: number | string;
 }
 
 const LearningGapsView: React.FC<LearningGapsViewProps> = ({ studentId, courseId }) => {
   const { user } = useAuthStore();
   const actualStudentId = studentId || user?.id;
+
+  const normalizeSeverity = (value: unknown): string => {
+    const raw = String(value || '').toLowerCase();
+    if (['critical', 'high', 'medium', 'low'].includes(raw)) return raw;
+    return 'medium';
+  };
+
+  const normalizeGapsData = (rawData: any): LearningGapsData => {
+    const rawGaps = Array.isArray(rawData)
+      ? rawData
+      : Array.isArray(rawData?.gaps)
+        ? rawData.gaps
+        : Array.isArray(rawData?.learningGaps)
+          ? rawData.learningGaps
+          : [];
+
+    const normalizedGaps: LearningGap[] = rawGaps.map((gap: any) => {
+      const severityFromAccuracy = typeof gap?.accuracy === 'number'
+        ? (gap.accuracy < 40 ? 'high' : gap.accuracy < 60 ? 'medium' : 'low')
+        : 'medium';
+
+      return {
+        conceptName: gap?.conceptName || gap?.concept || gap?.topic || 'Unknown Topic',
+        chapterName: gap?.chapterName || gap?.chapter || 'General',
+        severity: normalizeSeverity(gap?.severity || severityFromAccuracy),
+        gapType: gap?.gapType || 'performance_gap',
+        description: gap?.description || gap?.recommendation || 'Needs additional practice.',
+        prerequisiteConcepts: Array.isArray(gap?.prerequisiteConcepts) ? gap.prerequisiteConcepts : [],
+        recommendedActions: Array.isArray(gap?.recommendedActions)
+          ? gap.recommendedActions
+          : (gap?.recommendation ? [gap.recommendation] : ['Review chapter notes and reattempt practice questions.']),
+        estimatedRecoveryTime: Number(gap?.estimatedRecoveryTime || gap?.estimatedTime || 7),
+        impactScore: Number(gap?.impactScore || (100 - Number(gap?.accuracy || 0)) || 0),
+      };
+    });
+
+    const criticalCount = normalizedGaps.filter((g) => g.severity === 'critical' || g.severity === 'high').length;
+
+    return {
+      gaps: normalizedGaps,
+      totalGaps: Number(rawData?.totalGaps || rawData?.total_gaps || normalizedGaps.length),
+      criticalGaps: Number(rawData?.criticalGaps || rawData?.critical_gaps || criticalCount),
+      averageSeverity: String(rawData?.averageSeverity || rawData?.average_severity || (criticalCount > 0 ? 'high' : 'medium')),
+      recommendedStudyPath: Array.isArray(rawData?.recommendedStudyPath)
+        ? rawData.recommendedStudyPath
+        : Array.isArray(rawData?.recommended_study_path)
+          ? rawData.recommended_study_path
+          : [],
+    };
+  };
   
   const [gapsData, setGapsData] = useState<LearningGapsData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -82,8 +132,11 @@ const LearningGapsView: React.FC<LearningGapsViewProps> = ({ studentId, courseId
       setLoading(true);
       setError(null);
       
-      const response = await analyticsAPI.getLearningGaps(actualStudentId, courseId);
-      setGapsData(response.data.data as LearningGapsData);
+      const response = courseId
+        ? await analyticsAPI.getLearningGaps(actualStudentId, courseId)
+        : await analyticsAPI.getMyLearningGaps();
+
+      setGapsData(normalizeGapsData(response.data.data));
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to load learning gaps');
     } finally {
