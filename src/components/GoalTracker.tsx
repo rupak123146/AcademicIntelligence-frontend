@@ -31,7 +31,7 @@ import {
   Timer as TimerIcon,
   Star as StarIcon,
 } from '@mui/icons-material';
-import { courseAPI, goalAPI } from '@/services/api';
+import { examAPI, goalAPI } from '@/services/api';
 import { useAuthStore } from '@/store/authStore';
 
 interface GoalDraft {
@@ -102,16 +102,16 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({ courseId }) => {
 
   const resolveCourseIdFromApi = async (): Promise<number | string | undefined> => {
     try {
-      const response = await courseAPI.getEnrolledCourses();
+      const response = await examAPI.getAvailableExams();
       const payload = response.data?.data as any;
-      const courses = Array.isArray(payload)
+      const exams = Array.isArray(payload)
         ? payload
-        : Array.isArray(payload?.courses)
-          ? payload.courses
+        : Array.isArray(payload?.exams)
+          ? payload.exams
           : [];
 
-      const firstCourse = courses.find((course: any) => course?.id);
-      return firstCourse?.id;
+      const firstExamWithCourse = exams.find((exam: any) => exam?.courseId);
+      return firstExamWithCourse?.courseId;
     } catch {
       return undefined;
     }
@@ -199,7 +199,7 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({ courseId }) => {
     }
 
     if (!resolvedCourseId) {
-      setError('No enrolled course found for this account. Please enroll in a course before creating a goal.');
+      setError('No course context found for this account yet. Please attempt an assigned exam first, then create a goal.');
       return;
     }
 
