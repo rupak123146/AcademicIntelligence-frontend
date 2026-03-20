@@ -649,7 +649,7 @@ const Dashboard: React.FC = () => {
               <Typography variant="h6" fontWeight={600} mb={2}>
                 💬 Personalized Feedback
               </Typography>
-              <PersonalizedFeedback courseId={activeCourseId} />
+              <PersonalizedFeedback courseId={activeCourseId ?? 1} />
             </Paper>
           </Grid>
         </Grid>
