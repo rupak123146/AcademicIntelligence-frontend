@@ -31,7 +31,7 @@ import {
   Timer as TimerIcon,
   Star as StarIcon,
 } from '@mui/icons-material';
-import { goalAPI } from '@/services/api';
+import { courseAPI, goalAPI } from '@/services/api';
 import { useAuthStore } from '@/store/authStore';
 
 interface GoalDraft {
@@ -98,6 +98,23 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({ courseId }) => {
     }
 
     return undefined;
+  };
+
+  const resolveCourseIdFromApi = async (): Promise<number | string | undefined> => {
+    try {
+      const response = await courseAPI.getEnrolledCourses();
+      const payload = response.data?.data as any;
+      const courses = Array.isArray(payload)
+        ? payload
+        : Array.isArray(payload?.courses)
+          ? payload.courses
+          : [];
+
+      const firstCourse = courses.find((course: any) => course?.id);
+      return firstCourse?.id;
+    } catch {
+      return undefined;
+    }
   };
 
   const openCreateDialog = (prefill?: Partial<GoalDraft>) => {
@@ -176,9 +193,13 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({ courseId }) => {
       return;
     }
 
-    const resolvedCourseId = resolveCourseId();
+    let resolvedCourseId = resolveCourseId();
     if (!resolvedCourseId) {
-      setError('No active course found. Please select a course before creating a goal.');
+      resolvedCourseId = await resolveCourseIdFromApi();
+    }
+
+    if (!resolvedCourseId) {
+      setError('No enrolled course found for this account. Please enroll in a course before creating a goal.');
       return;
     }
 
