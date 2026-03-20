@@ -34,6 +34,15 @@ import {
 import { goalAPI } from '@/services/api';
 import { useAuthStore } from '@/store/authStore';
 
+interface GoalDraft {
+  goalType: string;
+  targetMetric: string;
+  targetValue: number;
+  targetDate: string;
+  priority: string;
+  description: string;
+}
+
 interface Goal {
   id: number;
   goalType: string;
@@ -48,26 +57,92 @@ interface Goal {
   daysRemaining: number;
 }
 
-const GoalTracker: React.FC = () => {
+interface GoalTrackerProps {
+  courseId?: number | string;
+}
+
+const GoalTracker: React.FC<GoalTrackerProps> = ({ courseId }) => {
   const { user } = useAuthStore();
   const [goals, setGoals] = useState<Goal[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [newGoal, setNewGoal] = useState({
+  const getDefaultTargetDate = () => {
+    const date = new Date();
+    date.setDate(date.getDate() + 30);
+    return date.toISOString().split('T')[0];
+  };
+
+  const [newGoal, setNewGoal] = useState<GoalDraft>({
     goalType: 'score_improvement',
     targetMetric: 'average_score',
     targetValue: 85,
-    targetDate: '',
+    targetDate: getDefaultTargetDate(),
     priority: 'medium',
     description: '',
   });
+
+  const resolveCourseId = (): number | string | undefined => {
+    if (courseId !== undefined && courseId !== null && String(courseId).trim() !== '') {
+      return courseId;
+    }
+
+    const userCourseId = (user as any)?.currentCourseId || (user as any)?.courseId;
+    if (userCourseId !== undefined && userCourseId !== null && String(userCourseId).trim() !== '') {
+      return userCourseId;
+    }
+
+    const goalCourseId = (goals[0] as any)?.courseId;
+    if (goalCourseId !== undefined && goalCourseId !== null && String(goalCourseId).trim() !== '') {
+      return goalCourseId;
+    }
+
+    return undefined;
+  };
+
+  const openCreateDialog = (prefill?: Partial<GoalDraft>) => {
+    setError(null);
+    setNewGoal({
+      goalType: prefill?.goalType || 'score_improvement',
+      targetMetric: prefill?.targetMetric || 'average_score',
+      targetValue: prefill?.targetValue ?? 85,
+      targetDate: prefill?.targetDate || getDefaultTargetDate(),
+      priority: prefill?.priority || 'medium',
+      description: prefill?.description || '',
+    });
+    setCreateDialogOpen(true);
+  };
 
   useEffect(() => {
     if (user?.id) {
       loadGoals();
     }
   }, []);
+
+  useEffect(() => {
+    const handleCreateGoalEvent = (event: Event) => {
+      const customEvent = event as CustomEvent<Partial<GoalDraft>>;
+      openCreateDialog(customEvent.detail || {});
+      const target = document.getElementById('goal-tracker-section');
+      target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+
+    const pendingGoal = sessionStorage.getItem('aip:pending-goal-prefill');
+    if (pendingGoal) {
+      try {
+        openCreateDialog(JSON.parse(pendingGoal) as Partial<GoalDraft>);
+      } catch {
+        // ignore malformed prefill payloads
+      } finally {
+        sessionStorage.removeItem('aip:pending-goal-prefill');
+      }
+    }
+
+    window.addEventListener('aip:create-goal', handleCreateGoalEvent as EventListener);
+    return () => {
+      window.removeEventListener('aip:create-goal', handleCreateGoalEvent as EventListener);
+    };
+  }, [courseId, goals]);
 
   const loadGoals = async () => {
     if (!user?.id) {
@@ -101,10 +176,16 @@ const GoalTracker: React.FC = () => {
       return;
     }
 
+    const resolvedCourseId = resolveCourseId();
+    if (!resolvedCourseId) {
+      setError('No active course found. Please select a course before creating a goal.');
+      return;
+    }
+
     try {
       await goalAPI.createGoal({
         studentId: user.id,
-        courseId: (goals[0] as any)?.courseId || 1,
+        courseId: resolvedCourseId,
         ...newGoal,
       });
       
@@ -116,7 +197,7 @@ const GoalTracker: React.FC = () => {
         goalType: 'score_improvement',
         targetMetric: 'average_score',
         targetValue: 85,
-        targetDate: '',
+        targetDate: getDefaultTargetDate(),
         priority: 'medium',
         description: '',
       });
@@ -156,7 +237,7 @@ const GoalTracker: React.FC = () => {
   }
 
   return (
-    <Box sx={{ p: 3 }}>
+    <Box sx={{ p: 3 }} id="goal-tracker-section">
       {/* Header */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Box>
@@ -171,7 +252,7 @@ const GoalTracker: React.FC = () => {
         <Button
           variant="contained"
           startIcon={<AddIcon />}
-          onClick={() => setCreateDialogOpen(true)}
+          onClick={() => openCreateDialog()}
         >
           Create Goal
         </Button>
@@ -200,7 +281,7 @@ const GoalTracker: React.FC = () => {
                 <Button
                   variant="contained"
                   startIcon={<AddIcon />}
-                  onClick={() => setCreateDialogOpen(true)}
+                  onClick={() => openCreateDialog()}
                 >
                   Create Your First Goal
                 </Button>

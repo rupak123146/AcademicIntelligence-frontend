@@ -32,7 +32,7 @@ import {
   Info as InfoIcon,
   PlayArrow as PlayArrowIcon,
 } from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { analyticsAPI } from '@/services/api';
 import { useAuthStore } from '@/store/authStore';
 
@@ -63,6 +63,7 @@ interface LearningGapsViewProps {
 
 const LearningGapsView: React.FC<LearningGapsViewProps> = ({ studentId, courseId }) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuthStore();
   const actualStudentId = studentId || user?.id;
 
@@ -174,6 +175,36 @@ const LearningGapsView: React.FC<LearningGapsViewProps> = ({ studentId, courseId
       default:
         return <InfoIcon />;
     }
+  };
+
+  const getDefaultTargetDate = () => {
+    const date = new Date();
+    date.setDate(date.getDate() + 30);
+    return date.toISOString().split('T')[0];
+  };
+
+  const handleStartStudyPlan = () => {
+    const planPreview = (gapsData?.recommendedStudyPath || []).slice(0, 3).join(' -> ');
+    const prefill = {
+      goalType: 'concept_mastery',
+      targetMetric: 'concept_accuracy',
+      targetValue: 85,
+      targetDate: getDefaultTargetDate(),
+      priority: (gapsData?.criticalGaps || 0) > 0 ? 'high' : 'medium',
+      description: planPreview
+        ? `Follow study path: ${planPreview}`
+        : 'Follow my personalized study plan to close learning gaps.',
+    };
+
+    sessionStorage.setItem('aip:pending-goal-prefill', JSON.stringify(prefill));
+
+    const isOnStudentDashboard = location.pathname === '/student' || location.pathname === '/student/dashboard';
+    if (isOnStudentDashboard) {
+      window.dispatchEvent(new CustomEvent('aip:create-goal', { detail: prefill }));
+      return;
+    }
+
+    navigate('/student/dashboard');
   };
 
   if (loading) {
@@ -438,7 +469,7 @@ const LearningGapsView: React.FC<LearningGapsViewProps> = ({ studentId, courseId
         <Button
           variant="contained"
           startIcon={<MenuBookIcon />}
-          onClick={() => navigate('/student/interventions')}
+          onClick={handleStartStudyPlan}
         >
           Start Study Plan
         </Button>

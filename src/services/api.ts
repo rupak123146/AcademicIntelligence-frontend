@@ -466,7 +466,7 @@ export const analyticsAPI = {
   getTrend: (studentId: number, courseId: number, windowSize?: number) =>
     analyticsApi.post<APIResponse>('/analytics/trend', { studentId, courseId }, { params: { windowSize } }),
 
-  getFeedback: (studentId: number | undefined, courseId: number, examId?: number) =>
+  getFeedback: (studentId: number | undefined, courseId: number | string, examId?: number) =>
     analyticsApi.post<APIResponse>('/analytics/feedback', {
       ...(studentId !== undefined ? { studentId } : {}),
       courseId,

@@ -32,6 +32,7 @@ import {
   Star as StarIcon,
   AutoAwesome as AutoAwesomeIcon,
 } from '@mui/icons-material';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { analyticsAPI } from '@/services/api';
 import { useAuthStore } from '@/store/authStore';
 
@@ -55,12 +56,14 @@ interface PersonalizedFeedbackData {
 
 interface PersonalizedFeedbackProps {
   studentId?: number;
-  courseId: number;
+  courseId: number | string;
   examId?: number;
 }
 
 const PersonalizedFeedback: React.FC<PersonalizedFeedbackProps> = ({ studentId, courseId, examId }) => {
   const { user } = useAuthStore();
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const resolveStudentId = (): number | undefined => {
     if (typeof studentId === 'number') {
@@ -117,6 +120,36 @@ const PersonalizedFeedback: React.FC<PersonalizedFeedbackProps> = ({ studentId, 
       default:
         return 'default';
     }
+  };
+
+  const getDefaultTargetDate = () => {
+    const date = new Date();
+    date.setDate(date.getDate() + 30);
+    return date.toISOString().split('T')[0];
+  };
+
+  const handleCreateGoalFromFeedback = () => {
+    const firstRecommendation = feedback?.recommendations?.[0]?.message;
+    const firstWeakness = feedback?.weaknesses?.[0]?.message;
+
+    const prefill = {
+      goalType: 'score_improvement',
+      targetMetric: 'average_score',
+      targetValue: 80,
+      targetDate: getDefaultTargetDate(),
+      priority: 'medium',
+      description: firstRecommendation || firstWeakness || 'Improve performance using personalized feedback recommendations.',
+    };
+
+    sessionStorage.setItem('aip:pending-goal-prefill', JSON.stringify(prefill));
+
+    const isOnStudentDashboard = location.pathname === '/student' || location.pathname === '/student/dashboard';
+    if (isOnStudentDashboard) {
+      window.dispatchEvent(new CustomEvent('aip:create-goal', { detail: prefill }));
+      return;
+    }
+
+    navigate('/student/dashboard');
   };
 
   if (loading) {
@@ -360,7 +393,7 @@ const PersonalizedFeedback: React.FC<PersonalizedFeedbackProps> = ({ studentId, 
         <Button variant="outlined" onClick={loadFeedback}>
           Refresh Feedback
         </Button>
-        <Button variant="contained" startIcon={<TrendingUpIcon />}>
+        <Button variant="contained" startIcon={<TrendingUpIcon />} onClick={handleCreateGoalFromFeedback}>
           Create Goal from Feedback
         </Button>
       </Box>

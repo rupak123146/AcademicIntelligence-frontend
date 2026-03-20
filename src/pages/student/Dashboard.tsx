@@ -164,9 +164,7 @@ interface UpcomingExamItem {
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuthStore();
-  const activeCourseId = (user as any)?.currentCourseId
-    ? Number((user as any).currentCourseId)
-    : undefined;
+  const activeCourseId = (user as any)?.currentCourseId || (user as any)?.courseId;
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [upcomingExams, setUpcomingExams] = useState<UpcomingExamItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -673,7 +671,7 @@ const Dashboard: React.FC = () => {
               <Typography variant="h6" fontWeight={600} mb={2}>
                 🎯 My Learning Goals
               </Typography>
-              <GoalTracker />
+              <GoalTracker courseId={activeCourseId} />
             </Paper>
           </Grid>
         </Grid>
