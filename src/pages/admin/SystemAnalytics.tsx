@@ -186,7 +186,7 @@ const SystemAnalytics: React.FC = () => {
           const computedTopExams = examStats
             .sort((a: any, b: any) => b.attempts - a.attempts)
             .slice(0, 5);
-          if (computedTopExams.length > 0 || !Array.isArray(systemData.topExams) || systemData.topExams.length === 0) {
+          if (!Array.isArray(systemData.topExams) || systemData.topExams.length === 0) {
             systemData.topExams = computedTopExams;
           }
           
