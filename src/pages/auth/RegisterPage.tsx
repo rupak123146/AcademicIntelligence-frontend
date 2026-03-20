@@ -89,7 +89,6 @@ const RegisterPage: React.FC = () => {
       email: formData.email,
       password: formData.password,
       role: formData.role,
-      institutionId: 1, // Default institution - should be selected from UI in production
     });
 
     if (success) {

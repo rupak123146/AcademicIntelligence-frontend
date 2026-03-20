@@ -46,8 +46,8 @@ export interface RegisterData {
   firstName: string;
   lastName: string;
   role: UserRole;
-  institutionId: number;
-  departmentId?: number;
+  institutionId?: number | string;
+  departmentId?: number | string;
 }
 
 // =====================================================
