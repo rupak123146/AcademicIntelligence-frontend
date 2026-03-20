@@ -32,6 +32,7 @@ import {
   Info as InfoIcon,
   PlayArrow as PlayArrowIcon,
 } from '@mui/icons-material';
+import { useNavigate } from 'react-router-dom';
 import { analyticsAPI } from '@/services/api';
 import { useAuthStore } from '@/store/authStore';
 
@@ -61,6 +62,7 @@ interface LearningGapsViewProps {
 }
 
 const LearningGapsView: React.FC<LearningGapsViewProps> = ({ studentId, courseId }) => {
+  const navigate = useNavigate();
   const { user } = useAuthStore();
   const actualStudentId = studentId || user?.id;
 
@@ -433,7 +435,11 @@ const LearningGapsView: React.FC<LearningGapsViewProps> = ({ studentId, courseId
         <Button variant="outlined" onClick={loadGaps}>
           Refresh Analysis
         </Button>
-        <Button variant="contained" startIcon={<MenuBookIcon />}>
+        <Button
+          variant="contained"
+          startIcon={<MenuBookIcon />}
+          onClick={() => navigate('/student/interventions')}
+        >
           Start Study Plan
         </Button>
       </Box>
